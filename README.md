@@ -1,94 +1,191 @@
 # 🍫 CacaoConnect
 
-**AI-Driven Cacao Supply Chain Management Platform**
+**AI-Driven Supply Chain Visibility Platform for Cacao de Davao**
 
-> Bridging the gap between smallholder farmers and cacao processors through intelligent demand-supply matching, real-time tracking, and AI-powered insights.
+> Solving material reliability challenges by connecting processors with farmers through real-time supply tracking, AI-powered forecasting, and early-warning systems.
 
 ---
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
+- [The Challenge](#the-challenge)
+- [Our Solution](#our-solution)
 - [Key Features](#key-features)
+- [How It Works](#how-it-works)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
 - [Database Schema](#database-schema)
 - [Status Workflows](#status-workflows)
 - [Getting Started](#getting-started)
-- [Roadmap](#roadmap)
+- [Environment Setup](#environment-setup)
+- [Database Setup](#database-setup)
 - [API Reference](#api-reference)
+- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 
 ---
 
-## 🌟 Overview
+## 🎯 The Challenge
 
-CacaoConnect is a dual-portal platform designed to digitize and optimize the cacao supply chain in Davao, Philippines. It connects:
+**Cacao de Davao** is a family-rooted chocolate company dedicated to supporting local farmers and strengthening Davao's reputation as the "cacao capital of the Philippines." Despite strong branding and market presence, the company faces a critical operational challenge:
 
-- **Processors (Buyers)**: Cacao de Davao HQ - Creates demand, tracks fulfillment, manages supply chain
-- **Farmers (Suppliers)**: Smallholder farmers - Receives orders, commits supply, tracks payments
+### Material Reliability Crisis
 
-### The Problem
+**Unpredictable harvests lead to an unstable supply of cacao beans**, which cascades into:
 
-1. **Information Asymmetry**: Farmers don't know market prices or demand
-2. **Supply Uncertainty**: Processors can't predict incoming volume
-3. **No Traceability**: No visibility once beans leave the farm
-4. **Weather Risks**: No early warning system for harvest decisions
+| Impact Area | Problem |
+|-------------|---------|
+| **Production** | Slowdowns and idle time when beans aren't available |
+| **Inventory** | Inconsistent product availability for customers |
+| **Financial** | Significant losses from delayed orders and wasted capacity |
+| **Planning** | Unable to forecast production or make commitments to buyers |
 
-### Our Solution
+### Root Causes
 
-A mobile-first platform that provides:
-- Real-time demand broadcasting
-- AI-powered harvest recommendations
-- End-to-end supply chain tracking
-- Transparent pricing and payments
+1. **Zero Visibility** - No real-time view into what farmers have available
+2. **No Early Warnings** - Supply gaps discovered only when it's too late
+3. **Communication Gap** - Farmers don't know what the processor needs or when
+4. **No Forecasting** - Cannot predict supply based on weather, season, or trends
+
+---
+
+## 💡 Our Solution
+
+**CacaoConnect** is a dual-portal platform that creates **end-to-end visibility** between Cacao de Davao and their farmer network, enabling:
+
+### For the Processor (Cacao de Davao HQ)
+
+✅ **Real-time supply visibility** - See exactly what beans are available across all farmers  
+✅ **Demand broadcasting** - Publish orders that reach all farmers instantly  
+✅ **AI-powered forecasting** - Predict supply gaps before they happen  
+✅ **Early warning alerts** - Get notified of weather risks, low commitments, or supply shortfalls  
+✅ **Partner performance tracking** - Know which farmers are reliable and have stock  
+
+### For Farmers
+
+✅ **Market access** - See exactly what the processor needs and at what price  
+✅ **AI harvest advisor** - Get recommendations on when to commit based on weather  
+✅ **Fair pricing** - Transparent quality grading (A/B/C) with clear price multipliers  
+✅ **Status tracking** - Know exactly where their beans are in the supply chain  
+
+### The Result
+
+📊 **Predictable supply flow** → Consistent production → Reliable product availability → Financial stability
 
 ---
 
 ## ✨ Key Features
 
-### For Processors (HQ Dashboard)
+### Supply Visibility & Forecasting
 
-| Feature | Description |
-|---------|-------------|
-| **Order Broadcasting** | Create and publish demand orders to all registered farmers |
-| **Commitment Management** | Review, approve/reject farmer offers with quality grading |
-| **Live Fill Tracking** | Real-time progress bars showing order fulfillment % |
-| **Supply Movement Tracker** | Visual timeline of beans from farm → transit → warehouse |
-| **Regional Supply View** | Aggregated inventory available across farmer network |
-| **KPI Dashboard** | Active orders, pending reviews, in-transit shipments |
+| Feature | How It Solves the Problem |
+|---------|---------------------------|
+| **Partner Network Dashboard** | Real-time view of all farmer inventory, stock levels, and locations |
+| **Regional Supply Aggregation** | See total available beans by type across the entire farmer network |
+| **AI Supply Forecasts** | Predict next week/month supply with confidence levels |
+| **Ready-for-Pickup Alerts** | Instant notification when farmers have beans ready to collect |
 
-### For Farmers (Mobile App)
+### Early Warning System
 
-| Feature | Description |
-|---------|-------------|
-| **Order Feed** | Browse open orders with price, volume, and deadlines |
-| **AI Harvest Advisor** | Weather-adjusted recommendations for optimal commitment |
-| **Quality Grading** | Self-assess beans (Grade A/B/C) affecting price multiplier |
-| **Commitment Tracking** | Monitor status: Pending → Approved → Ready → Collected → Paid |
-| **Inventory Management** | Log available stock by bean type |
-| **Text-to-Speech** | Audio playback of AI advice for hands-free operation |
+| Feature | How It Solves the Problem |
+|---------|---------------------------|
+| **Order Fill Tracking** | Live progress bars show if orders are on track to be filled |
+| **Risk Alerts** | AI identifies weather risks, supply shortfalls, and logistics delays |
+| **Pending Review Counter** | See how many farmer offers need processor attention |
+| **Reliability Scores** | Track which farmers consistently deliver on commitments |
+
+### Demand-Supply Matching
+
+| Feature | How It Solves the Problem |
+|---------|---------------------------|
+| **Order Broadcasting** | Publish demand to all farmers instantly - no more phone calls |
+| **Commitment Management** | Farmers commit specific volumes; processor approves/rejects |
+| **Quality Grading** | A/B/C grades with automatic price adjustment |
+| **Volume Tracking** | Know exactly how much is committed vs. target |
+
+### AI-Powered Insights (OpenAI GPT-4o-mini)
+
+| Feature | How It Solves the Problem |
+|---------|---------------------------|
+| **Order Recommendations** | AI suggests when to order, how much, and at what price |
+| **Demand Forecasting** | Predict next week/month demand based on patterns |
+| **Supply Forecasting** | Estimate incoming supply from farmer network |
+| **Opportunity Detection** | Identify bulk purchase opportunities or price advantages |
+
+---
+
+## 🔄 How It Works
+
+### The Supply Chain Flow
+
+```
+1. PROCESSOR BROADCASTS DEMAND
+   └─→ "Need 5,000kg Wet Beans by Jan 15 @ ₱48/kg"
+
+2. FARMERS SEE & RESPOND
+   └─→ AI advises: "Weather looks good, commit 500kg Grade A"
+   └─→ Farmer commits with quality grade
+
+3. PROCESSOR REVIEWS & APPROVES
+   └─→ See all offers, approve/reject based on grade & reliability
+   └─→ Live fill % updates as commitments are approved
+
+4. FARMER MARKS READY
+   └─→ Beans harvested and prepared for pickup
+   └─→ Processor gets alert: "3 farmers ready for pickup"
+
+5. LOGISTICS & DELIVERY
+   └─→ Processor schedules pickup
+   └─→ Track: Collected → In Transit → Delivered
+
+6. PAYMENT
+   └─→ Auto-calculated: Volume × Price × Grade Multiplier
+   └─→ Transparent breakdown for farmer
+```
+
+### Real-Time Visibility Loop
+
+```
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│   FARMER INVENTORY    →    PROCESSOR DASHBOARD  │
+│   (Stock updates)          (Live aggregation)   │
+│                                                 │
+│   COMMITMENTS         →    FILL TRACKING        │
+│   (Farmer offers)          (Progress %)         │
+│                                                 │
+│   STATUS CHANGES      →    ALERTS & KPIs        │
+│   (Ready/Collected)        (Early warnings)     │
+│                                                 │
+└─────────────────────────────────────────────────┘
+        ↑                              │
+        │      3-5 second polling      │
+        └──────────────────────────────┘
+```
 
 ---
 
 ## 🏗️ Architecture
 
-### High-Level Flow
+### System Overview
 
 ```
 ┌─────────────────┐         ┌─────────────────┐
 │   Processor     │         │     Farmer      │
 │   Dashboard     │         │   Mobile App    │
+│   (Desktop)     │         │   (Mobile-first)│
 └────────┬────────┘         └────────┬────────┘
          │                           │
          │    ┌───────────────┐      │
          └────►   Supabase    ◄──────┘
               │   (PostgreSQL) │
+              │   Real-time DB │
               └───────┬───────┘
                       │
               ┌───────▼───────┐
-              │  Gemini AI    │
-              │  (Analysis)   │
+              │   OpenAI      │
+              │  GPT-4o-mini  │
+              │  (Forecasts)  │
               └───────────────┘
 ```
 
@@ -98,24 +195,47 @@ A mobile-first platform that provides:
 CacaoConnectMVP/
 ├── Portal Selector (Entry Point)
 │   └── Role-based routing
-├── ProcessorApp
+│
+├── ProcessorApp (Desktop Dashboard)
 │   ├── KPI Dashboard
+│   │   ├── Committed Volume
+│   │   ├── Active Orders
+│   │   ├── Pending Review (early warning)
+│   │   └── In Transit
+│   ├── Regional Supply View
+│   │   └── Aggregated farmer inventory
 │   ├── Order Management
-│   │   ├── Create Order Modal
-│   │   ├── Order Table with Filters
+│   │   ├── Create Order (broadcast demand)
+│   │   ├── Order Table with Status Filters
 │   │   └── Order Detail Modal
-│   │       └── Commitment Actions
-│   └── Supply Tracking View
-│       └── Progress Timeline
-└── FarmerApp
+│   │       ├── Fill Progress
+│   │       ├── Commitment List
+│   │       └── Actions (Approve/Reject/Collect)
+│   ├── Partner Network View
+│   │   ├── Farmer list with stock
+│   │   ├── Reliability scores
+│   │   └── Ready-for-pickup alerts
+│   ├── Supply Tracking View
+│   │   └── Progress timelines
+│   └── AI Insights View
+│       ├── Order Recommendations
+│       ├── Supply Forecasts
+│       ├── Risk Alerts
+│       └── Opportunities
+│
+└── FarmerApp (Mobile-First)
     ├── Home (Order Feed)
-    │   └── Weather Widget
+    │   ├── Weather Widget
+    │   └── Quick Stats
     ├── Order Detail
-    │   ├── AI Analysis
+    │   ├── AI Harvest Advisor
+    │   ├── Quality Grade Selection
     │   └── Commitment Form
     ├── Inventory View
-    └── Commitments History
-        └── Status Actions
+    │   └── Stock by bean type
+    └── My Commitments
+        ├── Status Timeline
+        └── Mark Ready action
 ```
 
 ---
@@ -124,11 +244,11 @@ CacaoConnectMVP/
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
-| **Frontend** | Next.js 16 (App Router) | React framework with server components |
-| **Styling** | Tailwind CSS 4 | Utility-first CSS framework |
-| **Database** | Supabase (PostgreSQL) | Real-time database with RLS |
-| **AI/ML** | Google Gemini 2.5 Flash | Harvest analysis & recommendations |
-| **TTS** | Gemini TTS | Voice output for accessibility |
+| **Frontend** | Next.js 16 (App Router) | React framework with SSR |
+| **Styling** | Tailwind CSS 4 | Utility-first responsive design |
+| **Database** | Supabase (PostgreSQL) | Real-time database with REST API |
+| **AI/ML** | OpenAI GPT-4o-mini | Forecasting, recommendations, risk analysis |
+| **TTS** | Web Speech API | Accessibility for farmers |
 | **Icons** | Lucide React | Consistent icon system |
 
 ---
@@ -144,9 +264,9 @@ CacaoConnectMVP/
 | `title` | TEXT | Order description |
 | `volume_kg` | INTEGER | Target volume required |
 | `price_per_kg` | DECIMAL | Buying price offer |
-| `bean_type` | TEXT | Wet Beans, Dried, Fermented |
+| `bean_type` | TEXT | Wet Beans, Dried Beans, Fermented |
 | `deadline` | DATE | Fulfillment deadline |
-| `status` | ENUM | Order lifecycle status |
+| `status` | TEXT | Order status (default: 'open') |
 | `created_at` | TIMESTAMP | Creation time |
 | `updated_at` | TIMESTAMP | Last modification |
 
@@ -155,11 +275,11 @@ CacaoConnectMVP/
 |--------|------|-------------|
 | `id` | UUID | Primary key |
 | `order_id` | UUID | FK to orders |
-| `farmer_id` | UUID | FK to farmers |
+| `farmer_id` | UUID | FK to farmers (optional for demo) |
 | `committed_volume_kg` | INTEGER | Offered volume |
 | `bean_type` | TEXT | Type of beans offered |
 | `quality_grade` | CHAR(1) | A, B, or C grade |
-| `status` | ENUM | Commitment lifecycle |
+| `status` | TEXT | Commitment lifecycle status |
 | `location` | TEXT | Pickup location |
 | `created_at` | TIMESTAMP | Submission time |
 | `updated_at` | TIMESTAMP | Last status change |
@@ -168,35 +288,34 @@ CacaoConnectMVP/
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID | Primary key |
-| `owner_type` | ENUM | 'farmer' or 'processor' |
-| `owner_id` | UUID | FK to user |
+| `owner_type` | TEXT | 'farmer' or 'processor' |
+| `owner_id` | UUID | FK to user (optional) |
 | `bean_type` | TEXT | Bean classification |
 | `quantity_kg` | INTEGER | Available stock |
 | `quality_notes` | TEXT | Condition notes |
+| `created_at` | TIMESTAMP | Creation time |
 
 ---
 
 ## 🔄 Status Workflows
 
-### Order Lifecycle
+### Order Status (Auto-Derived)
+
+Order status is automatically calculated based on commitment states:
 
 ```
-DRAFT → OPEN → FILLED → IN_TRANSIT → DELIVERED → COMPLETED
-                 ↓
-            CANCELLED
+OPEN → FILLED → IN_TRANSIT → DELIVERED → COMPLETED
 ```
 
-| Status | Description | Trigger |
-|--------|-------------|---------|
-| `draft` | Created but not published | Manual |
-| `open` | Accepting farmer commitments | Publish action |
-| `filled` | Target volume reached (approved commits) | Auto-calculated |
-| `in_transit` | Beans being collected/transported | Any commitment collected |
-| `delivered` | Arrived at processor warehouse | All commitments delivered |
-| `completed` | Payment processed | All commitments paid |
-| `cancelled` | Order cancelled | Manual action |
+| Status | Condition | What It Means |
+|--------|-----------|---------------|
+| `open` | fillPercentage < 100% | Still accepting farmer commitments |
+| `filled` | fillPercentage >= 100% | Target volume reached, ready for collection |
+| `in_transit` | Any commitment collected | Beans being transported |
+| `delivered` | deliveredVolume > 0 | Some beans arrived at warehouse |
+| `completed` | deliveryPercentage >= 100% | All beans delivered |
 
-### Commitment Lifecycle
+### Commitment Status Workflow
 
 ```
 PENDING → APPROVED → READY → COLLECTED → DELIVERED → PAID
@@ -206,13 +325,21 @@ REJECTED
 
 | Status | Actor | Description |
 |--------|-------|-------------|
-| `pending` | Farmer | Offer submitted, awaiting review |
-| `approved` | Processor | Commitment accepted |
-| `rejected` | Processor | Commitment declined |
-| `ready` | Farmer | Beans harvested, ready for pickup |
-| `collected` | Processor/Logistics | Picked up from farm |
-| `delivered` | Processor | Arrived at warehouse |
-| `paid` | Processor | Payment released |
+| `pending` | Farmer | Offer submitted, awaiting processor review |
+| `approved` | Processor | Commitment accepted, waiting for harvest |
+| `rejected` | Processor | Commitment declined (quality/volume/timing) |
+| `ready` | Farmer | Beans harvested and ready for pickup |
+| `collected` | Processor | Picked up from farm by logistics |
+| `delivered` | Processor | Arrived at processor warehouse |
+| `paid` | Processor | Payment released to farmer |
+
+**Database Constraint Required:**
+
+```sql
+ALTER TABLE commitments DROP CONSTRAINT IF EXISTS commitments_status_check;
+ALTER TABLE commitments ADD CONSTRAINT commitments_status_check 
+CHECK (status = ANY (ARRAY['pending', 'approved', 'rejected', 'ready', 'collected', 'delivered', 'paid']));
+```
 
 ### Quality Grade Pricing
 
@@ -231,170 +358,109 @@ REJECTED
 - Node.js 18+
 - npm or yarn
 - Supabase account
+- OpenAI API key
 
 ### Installation
 
 ```bash
 # Clone repository
 git clone https://github.com/your-org/cacaoconnect.git
-cd cacaoconnect
+cd cacaoconnect/cacaoconnect-dashboard
 
 # Install dependencies
 npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your Supabase and Gemini API keys
 
 # Run development server
 npm run dev
 ```
 
-### Environment Variables
+Open [http://localhost:3000](http://localhost:3000) to see the application.
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-NEXT_PUBLIC_GEMINI_API_KEY=your-gemini-key
+---
+
+## ⚙️ Environment Setup
+
+### API Keys
+
+Currently configured in `app/components/CacaoConnectMVP.jsx`:
+
+```javascript
+const SUPABASE_URL = "https://faupcdnglrfilagceykz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGci...";
+const OPENAI_API_KEY = "sk-proj-...";
 ```
 
-### Database Setup
+For production, migrate to environment variables:
 
-Run these SQL commands in Supabase SQL Editor:
-
-```sql
--- Enable RLS
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE commitments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
-
--- Create indexes for performance
-CREATE INDEX idx_commitments_order_id ON commitments(order_id);
-CREATE INDEX idx_commitments_status ON commitments(status);
-CREATE INDEX idx_inventory_owner ON inventory(owner_type, owner_id);
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_OPENAI_API_KEY=your-openai-key
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 🗄️ Database Setup
 
-### Phase 1: MVP Complete ✅
-**Status: Current**
+### 1. Create Tables
 
-- [x] Dual-portal architecture (Farmer/Processor)
-- [x] Real-time data polling (3-5s intervals)
-- [x] Order creation and broadcasting
-- [x] Basic commitment workflow
-- [x] AI harvest analysis with Gemini
-- [x] Text-to-Speech accessibility
-- [x] Inventory tracking by owner type
+```sql
+-- Orders table
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  volume_kg INTEGER NOT NULL,
+  price_per_kg DECIMAL(10,2) NOT NULL,
+  deadline DATE NOT NULL,
+  bean_type TEXT NOT NULL,
+  status TEXT DEFAULT 'open',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-### Phase 2: Enhanced Workflows ✅
-**Status: Just Completed**
+-- Commitments table
+CREATE TABLE IF NOT EXISTS commitments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  order_id UUID REFERENCES orders(id),
+  farmer_id UUID,
+  committed_volume_kg INTEGER NOT NULL,
+  status TEXT DEFAULT 'pending',
+  bean_type TEXT,
+  quality_grade CHAR(1) DEFAULT 'A',
+  location TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT commitments_status_check CHECK (
+    status = ANY (ARRAY['pending', 'approved', 'rejected', 'ready', 'collected', 'delivered', 'paid'])
+  )
+);
 
-- [x] Complete order lifecycle (Draft → Completed)
-- [x] Full commitment status workflow
-- [x] Processor commitment review (Approve/Reject)
-- [x] Farmer "Mark as Ready" action
-- [x] Supply movement tracking view
-- [x] Progress timeline visualization
-- [x] Quality grading system (A/B/C)
-- [x] Order detail modal with commitment management
-- [x] My Commitments history view for farmers
-- [x] Status filtering on orders table
+-- Inventory table
+CREATE TABLE IF NOT EXISTS inventory (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_type TEXT NOT NULL,
+  owner_id UUID,
+  bean_type TEXT NOT NULL,
+  quantity_kg INTEGER NOT NULL,
+  quality_notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-### Phase 3: Authentication & Security 🔄
-**Target: Q1 2025**
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_commitments_order_id ON commitments(order_id);
+CREATE INDEX IF NOT EXISTS idx_commitments_status ON commitments(status);
+CREATE INDEX IF NOT EXISTS idx_inventory_owner ON inventory(owner_type, owner_id);
+```
 
-- [ ] Supabase Auth integration
-  - [ ] Phone number OTP for farmers
-  - [ ] Email/password for processors
-- [ ] Role-based access control (RBAC)
-- [ ] Row Level Security policies
-  - [ ] Farmers see only their commitments
-  - [ ] Processors see only their orders
-- [ ] Session management
-- [ ] Secure API key handling
+### 2. Update Existing Constraint
 
-### Phase 4: Offline & Performance 📱
-**Target: Q1 2025**
+If your database has a limited status constraint:
 
-- [ ] Progressive Web App (PWA) configuration
-- [ ] Service worker for offline caching
-- [ ] TanStack Query for data management
-  - [ ] Background refetching
-  - [ ] Optimistic updates
-  - [ ] Offline persistence
-- [ ] Local storage fallback
-- [ ] Sync queue for offline actions
-- [ ] Image optimization and lazy loading
-
-### Phase 5: Payments & Finance 💰
-**Target: Q2 2025**
-
-- [ ] Payment gateway integration
-  - [ ] GCash API
-  - [ ] Maya/PayMaya API
-- [ ] Automated payment calculation
-  - [ ] Volume × Price × Grade Multiplier
-- [ ] Payment status tracking
-- [ ] Transaction history
-- [ ] Digital receipts
-- [ ] Payout scheduling
-
-### Phase 6: Logistics & Tracking 🚚
-**Target: Q2 2025**
-
-- [ ] GPS tracking integration
-- [ ] Route optimization
-- [ ] ETA calculations
-- [ ] Driver assignment
-- [ ] Delivery confirmation with photo
-- [ ] SMS notifications
-- [ ] QR code scanning for verification
-
-### Phase 7: Advanced AI Features 🤖
-**Target: Q3 2025**
-
-- [ ] Weather API integration (PAGASA/OpenWeather)
-- [ ] Soil data correlation
-- [ ] Historical yield analysis
-- [ ] Price forecasting
-- [ ] Demand prediction
-- [ ] Multi-language support (Bisaya, Tagalog)
-- [ ] Voice input for farmers
-
-### Phase 8: Analytics & Reporting 📊
-**Target: Q3 2025**
-
-- [ ] Processor dashboard analytics
-  - [ ] Volume trends
-  - [ ] Supplier performance
-  - [ ] Cost analysis
-- [ ] Farmer earnings dashboard
-- [ ] Export to CSV/PDF
-- [ ] Scheduled reports
-- [ ] Regional aggregation maps
-
-### Phase 9: Marketplace Expansion 🌐
-**Target: Q4 2025**
-
-- [ ] Multi-processor support
-- [ ] Competitive bidding
-- [ ] Farmer ratings
-- [ ] Quality certification badges
-- [ ] Contract farming agreements
-- [ ] Cooperative management
-
-### Phase 10: Sustainability & Compliance 🌱
-**Target: Q4 2025**
-
-- [ ] Carbon footprint tracking
-- [ ] Fair trade certification
-- [ ] Organic verification
-- [ ] Export documentation
-- [ ] Government compliance reporting
-- [ ] Traceability certificates
+```sql
+ALTER TABLE commitments DROP CONSTRAINT IF EXISTS commitments_status_check;
+ALTER TABLE commitments ADD CONSTRAINT commitments_status_check 
+CHECK (status = ANY (ARRAY['pending', 'approved', 'rejected', 'ready', 'collected', 'delivered', 'paid']));
+```
 
 ---
 
@@ -404,9 +470,9 @@ CREATE INDEX idx_inventory_owner ON inventory(owner_type, owner_id);
 
 ```javascript
 // Orders
-DataService.getOrdersWithProgress()     // Get enriched orders
-DataService.createOrder(orderData)       // Create new order
-DataService.updateOrderStatus(id, status) // Update status
+DataService.getOrdersWithProgress()      // Orders with fill %, delivery %, commitments
+DataService.createOrder(orderData)       // Broadcast new demand
+DataService.updateOrderStatus(id, status)
 
 // Commitments
 DataService.commitToOrder(orderId, volume, farmerId, beanType, grade)
@@ -414,66 +480,96 @@ DataService.getFarmerCommitments(farmerId)
 DataService.updateCommitmentStatus(id, status)
 DataService.markAsReady(commitmentId)
 
-// Inventory
+// Supply Visibility
 DataService.getInventory(ownerType)      // 'farmer' | 'processor'
-DataService.getAggregatedSupply()        // Regional farmer totals
+DataService.getAggregatedSupply()        // Total farmer stock by bean type
+DataService.getPartnerNetwork()          // Farmers with inventory & reliability
+DataService.getFarmersReadyForPickup()   // Ready commitments
 
-// Stats
-DataService.getStats()                   // Dashboard KPIs
+// Dashboard Stats
+DataService.getStats()                   // KPIs for dashboard
 ```
 
-### AI Integration
+### AI Functions
 
 ```javascript
-// Harvest Analysis
-callGeminiJSON(prompt) // Returns structured recommendation
+// Supply chain analysis
+callOpenAIJSON(prompt)  // Returns: forecasts, recommendations, alerts
 
-// Text-to-Speech
-callGeminiTTS(text)    // Plays audio output
+// Accessibility
+callTTS(text)           // Browser native text-to-speech
 ```
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ Phase 1: Core Platform (Complete)
+- [x] Dual-portal architecture
+- [x] Real-time data polling
+- [x] Order broadcasting
+- [x] Commitment workflow
+- [x] Inventory tracking
+
+### ✅ Phase 2: Supply Visibility (Complete)
+- [x] Partner Network dashboard
+- [x] Regional supply aggregation
+- [x] AI forecasting & recommendations
+- [x] Risk alerts
+- [x] Quality grading system
+- [x] Fill progress tracking
+
+### 🔄 Phase 3: Authentication & Security
+- [ ] Supabase Auth (OTP for farmers, email for processors)
+- [ ] Row Level Security
+- [ ] Environment variable migration
+
+### 📱 Phase 4: Mobile & Offline
+- [ ] PWA support
+- [ ] Offline sync
+- [ ] Push notifications
+
+### 💰 Phase 5: Payments & Logistics
+- [ ] GCash/Maya integration
+- [ ] GPS tracking
+- [ ] SMS alerts
+
+### 🤖 Phase 6: Advanced AI
+- [ ] Weather API integration (PAGASA)
+- [ ] Price forecasting
+- [ ] Multi-language (Bisaya/Tagalog)
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Workflow
-
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
-
-### Code Style
-
-- Use ESLint configuration provided
-- Follow React best practices
-- Write meaningful commit messages
-- Add comments for complex logic
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- **Cacao de Davao** - Industry partner and domain expertise
+- **Cacao de Davao** - Industry partner and problem owner
 - **Davao Cacao Farmers Association** - User testing and feedback
-- **Google AI** - Gemini API access
+- **OpenAI** - GPT-4o-mini for AI insights
 - **Supabase** - Database infrastructure
 
 ---
 
 <div align="center">
 
-**Built with ❤️ for Davao's Cacao Farmers**
+**Solving Material Reliability for Davao's Cacao Industry**
 
-[Report Bug](https://github.com/your-org/cacaoconnect/issues) · [Request Feature](https://github.com/your-org/cacaoconnect/issues)
+*Built with ❤️ for Cacao de Davao and their farmer partners*
 
 </div>
