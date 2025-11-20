@@ -17,10 +17,8 @@ import {
 
 // --- CONFIGURATION ---
 
-const SUPABASE_URL = "https://faupcdnglrfilagceykz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhdXBjZG5nbHJmaWxhZ2NleWt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MjA5MjcsImV4cCI6MjA3OTE5NjkyN30.g5dCB0DFsYIjtY4HMLkEHK9mRQ1f7qht5y_S3sA28FU";
-
-const OPENAI_API_KEY = "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";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -96,49 +94,27 @@ export const ToastNotification = ({ toast }) => {
 
 // AI Handlers
 export const callOpenAIJSON = async (prompt) => {
-  if (!OPENAI_API_KEY || OPENAI_API_KEY === "YOUR_OPENAI_API_KEY_HERE") {
-    console.warn("OpenAI API key not configured");
-    return null;
-  }
-  
-  const url = 'https://api.openai.com/v1/chat/completions';
-  const payload = {
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: "You are an AI supply chain advisor. Always respond with valid JSON only, no markdown formatting or code blocks."
-      },
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-    temperature: 0.7,
-    response_format: { type: "json_object" }
-  };
-  
   try {
-    const response = await fetch(url, {
+    // Call our internal API route instead of OpenAI directly
+    // This keeps the API key secure on the server side
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ prompt })
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      console.error("OpenAI API Error:", error);
+      const errorData = await response.json();
+      console.error("AI Service Error:", errorData);
       return null;
     }
     
     const data = await response.json();
-    const content = data.choices[0].message.content;
-    return JSON.parse(content);
+    return data;
   } catch (error) {
-    console.error("OpenAI API Error:", error);
+    console.error("AI Service Network Error:", error);
     return null;
   }
 };
