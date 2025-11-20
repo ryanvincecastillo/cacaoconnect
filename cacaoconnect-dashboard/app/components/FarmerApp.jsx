@@ -383,6 +383,28 @@ Provide comprehensive insights in JSON:
 
   const analytics = calculateAnalytics();
 
+  // --- Helper: Dynamic Greeting ---
+  const getGreetingData = () => {
+    const hour = new Date().getHours();
+    let period = 'Buntag'; // Default Morning
+    let icon = '🌤️';
+    
+    if (hour >= 12 && hour < 18) period = 'Hapon'; // Afternoon
+    else if (hour >= 18 || hour < 5) {
+        period = 'Gabii'; // Evening
+        icon = '🌙';
+    }
+    
+    // Weather override for icon
+    if (weatherData?.current?.condition?.toLowerCase().includes('rain')) {
+      icon = '🌧️';
+    }
+    
+    return { period, icon };
+  };
+
+  const { period, greetingIcon } = getGreetingData();
+
   // --- RENDER: Order Detail View ---
   if (selectedOrder) {
     return (
@@ -827,8 +849,7 @@ Provide comprehensive insights in JSON:
                 <div className="bg-stone-50 p-2 rounded-lg mb-3">
                   <p className="text-xs text-stone-400">Est. Value</p>
                   <p className="font-bold text-emerald-600">
-                    ₱{(Number(item.committed_volume_kg) * (item.orders?.price_per_kg || 45) * 
-                      (item.quality_grade === 'A' ? 1 : item.quality_grade === 'B' ? 0.85 : 0.7)).toLocaleString()}
+                    ₱{(Number(item.committed_volume_kg) * (item.orders?.price_per_kg || 45) * (item.quality_grade === 'A' ? 1 : item.quality_grade === 'B' ? 0.85 : 0.7)).toLocaleString()}
                   </p>
                 </div>
                 
@@ -1105,7 +1126,7 @@ Provide comprehensive insights in JSON:
           </div>
           <button onClick={onLogout}><LogOut size={20} className="opacity-70"/></button>
         </div>
-        <h1 className="text-3xl font-bold leading-tight relative z-10">Maayong<br/>Buntag! 🌤️</h1>
+        <h1 className="text-3xl font-bold leading-tight relative z-10">Maayong<br/>{period}! {greetingIcon}</h1>
       </div>
       
       <div className="flex-1 overflow-y-auto px-4 -mt-8 relative z-20 pb-24">
