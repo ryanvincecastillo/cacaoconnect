@@ -5,7 +5,7 @@ export async function POST(req) {
     const body = await req.json();
     const { prompt } = body;
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
     if (!OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });

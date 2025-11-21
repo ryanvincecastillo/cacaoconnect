@@ -20,7 +20,10 @@ import {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Fallback to allow the app to render even if keys are missing (functionality will be limited)
+export const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) 
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
 
 // --- CONSTANTS ---
 
@@ -95,8 +98,6 @@ export const ToastNotification = ({ toast }) => {
 // AI Handlers
 export const callOpenAIJSON = async (prompt) => {
   try {
-    // Call our internal API route instead of OpenAI directly
-    // This keeps the API key secure on the server side
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
