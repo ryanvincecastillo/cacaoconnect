@@ -40,7 +40,12 @@ const VoiceFeedbackIndicator = ({
   status = 'Ready',
   showText = false,
   size = 'md',
-  className = ''
+  className = '',
+  // Wake word detection props
+  isWakeWordActive = false,
+  wakeWordStatus = 'idle',
+  wakeWordDetected = false,
+  audioLevel = 0
 }) => {
   // Size configurations
   const sizeConfig = {
@@ -53,11 +58,31 @@ const VoiceFeedbackIndicator = ({
 
   // Determine status colors and icons
   const getStatusConfig = () => {
+    // Wake word detection has priority
+    if (wakeWordDetected) {
+      return {
+        bgColor: 'bg-purple-500',
+        statusIcon: <Bot className={`${iconSize} text-white animate-bounce`} />,
+        textColor: 'text-purple-600',
+        ringColor: 'ring-purple-200'
+      };
+    }
+
+    if (isWakeWordActive) {
+      return {
+        bgColor: 'bg-orange-500',
+        statusIcon: <Bot className={`${iconSize} text-white animate-pulse`} />,
+        textColor: 'text-orange-600',
+        ringColor: 'ring-orange-200'
+      };
+    }
+
     if (isListening) {
       return {
         bgColor: 'bg-red-500',
         statusIcon: <Mic className={`${iconSize} text-white animate-pulse`} />,
-        textColor: 'text-red-600'
+        textColor: 'text-red-600',
+        ringColor: 'ring-red-200'
       };
     }
 
@@ -65,7 +90,8 @@ const VoiceFeedbackIndicator = ({
       return {
         bgColor: 'bg-blue-500',
         statusIcon: <Volume2 className={`${iconSize} text-white`} />,
-        textColor: 'text-blue-600'
+        textColor: 'text-blue-600',
+        ringColor: 'ring-blue-200'
       };
     }
 
@@ -73,25 +99,46 @@ const VoiceFeedbackIndicator = ({
       return {
         bgColor: 'bg-gray-400',
         statusIcon: <WifiOff className={`${iconSize} text-white`} />,
-        textColor: 'text-gray-600'
+        textColor: 'text-gray-600',
+        ringColor: ''
       };
     }
 
     return {
       bgColor: 'bg-emerald-500',
       statusIcon: <Bot className={`${iconSize} text-white`} />,
-      textColor: 'text-emerald-600'
+      textColor: 'text-emerald-600',
+      ringColor: ''
     };
   };
 
-  const { bgColor, statusIcon, textColor } = getStatusConfig();
+  const { bgColor, statusIcon, textColor, ringColor } = getStatusConfig();
+
+  // Determine status text
+  const getStatusText = () => {
+    if (wakeWordDetected) return 'Wake word detected!';
+    if (isWakeWordActive) {
+      switch (wakeWordStatus) {
+        case 'detecting': return 'Listening for "Hey Jodex"...';
+        case 'confirmed': return 'Wake word confirmed!';
+        case 'initializing': return 'Initializing wake word...';
+        default: return 'Wake word active';
+      }
+    }
+    if (isListening) return 'Listening...';
+    if (isSpeaking) return 'Speaking...';
+    return status;
+  };
+
+  // Determine if we should show ring animation
+  const shouldShowRing = wakeWordDetected || isWakeWordActive || isListening;
 
   return (
     <div className={`flex items-center space-x-2 ${className}`}>
       {/* Main indicator circle */}
       <div className="relative">
         <div className={`${container} ${bgColor} rounded-full flex items-center justify-center transition-all duration-300 ${
-          isListening ? 'animate-pulse ring-4 ring-red-200' : ''
+          shouldShowRing && ringColor ? `ring-4 ${ringColor}` : ''
         }`}>
           {statusIcon}
         </div>
@@ -101,17 +148,35 @@ const VoiceFeedbackIndicator = ({
           <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
         )}
 
-        {/* Volume bars when listening */}
-        <VolumeBars isListening={isListening} volume={volume} />
+        {/* Wake word detection indicator */}
+        {isWakeWordActive && !wakeWordDetected && (
+          <div className="absolute -top-1 -left-1 w-2 h-2 bg-orange-400 rounded-full animate-ping" />
+        )}
+
+        {/* Wake word detected indicator */}
+        {wakeWordDetected && (
+          <div className="absolute -top-1 -left-1 w-3 h-3 bg-purple-400 rounded-full animate-ping" />
+        )}
+
+        {/* Volume bars when listening or wake word active */}
+        <VolumeBars isListening={isListening || isWakeWordActive} volume={isWakeWordActive ? audioLevel : volume} />
       </div>
 
       {/* Status text */}
       {showText && (
         <div className="flex flex-col">
           <span className={`text-sm font-medium ${textColor}`}>
-            {isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : status}
+            {getStatusText()}
           </span>
-          {!isConnected && (
+          
+          {/* Secondary status */}
+          {(wakeWordDetected || isWakeWordActive) && (
+            <span className="text-xs opacity-75">
+              {wakeWordDetected ? 'Activating voice assistant...' : 'Say "Hey Jodex" to start'}
+            </span>
+          )}
+          
+          {!isConnected && !isWakeWordActive && (
             <span className="text-xs text-red-500">Disconnected</span>
           )}
         </div>

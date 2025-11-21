@@ -12,7 +12,9 @@ import {
   Bot,
   User,
   Headphones,
-  Settings
+  Settings,
+  Play,
+  Pause
 } from 'lucide-react';
 
 // LiveKit imports
@@ -22,6 +24,11 @@ import { RoomEvent } from 'livekit-client';
 // Environment validation
 import { isVoiceAssistantConfigured, getEnvVars, validateClientEnv } from '../lib/env-validation';
 import { VoiceService } from '../lib/voiceService';
+import { useWakeWordDetection } from '../hooks/useWakeWordDetection';
+import VoiceFeedbackIndicator from './VoiceFeedbackIndicator';
+import VoiceVisualizer from './VoiceVisualizer';
+import VoiceVisualizerControls from './VoiceVisualizerControls';
+import { CircularAudioBuffer } from '../lib/audioBuffer';
 
 const VoiceAssistantComponent = ({
   userId,
@@ -43,10 +50,92 @@ const VoiceAssistantComponent = ({
   const [isMuted, setIsMuted] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   const [envError, setEnvError] = useState(null);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(true);
+  
+  // Visualizer state
+  const [visualizerMode, setVisualizerMode] = useState('waveform');
+  const [visualizerTheme, setVisualizerTheme] = useState('default');
+  const [visualizerSensitivity, setVisualizerSensitivity] = useState(0.7);
+  const [visualizerHeight, setVisualizerHeight] = useState(120);
+  const [showVisualizerControls, setShowVisualizerControls] = useState(false);
+  const [audioStream, setAudioStream] = useState(null);
 
   // Refs
   const roomRef = useRef(null);
   const audioRef = useRef(null);
+
+  // Handle wake word detection
+  const handleWakeWordDetected = async (detection) => {
+    console.log('🎯 Wake word detected:', detection);
+    
+    try {
+      // Send audio to server for confirmation if available
+      if (detection.audioData && isConnected) {
+        const audioBuffer = detection.audioData;
+        const int16Data = CircularAudioBuffer.floatToInt16(audioBuffer.data);
+        const base64Audio = btoa(String.fromCharCode(...new Uint8Array(int16Data.buffer)));
+        
+        const response = await fetch('/api/wake-word/confirm', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            audioData: base64Audio,
+            wakeWord: detection.wakeWord,
+            confidence: detection.score,
+            userId: userId
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.confirmed) {
+          console.log('✅ Wake word confirmed by server');
+          setVoiceStatus('Wake word confirmed! Activating...');
+          showToast?.('Wake word detected! Say your command...', 'success');
+          
+          // Start listening for command after a short delay
+          setTimeout(() => {
+            startListening();
+          }, 1000);
+        } else {
+          console.log('❌ Wake word not confirmed by server');
+          showToast?.('Wake word not confirmed. Please try again.', 'info');
+        }
+      } else {
+        // Fallback to client-side detection
+        setVoiceStatus('Wake word detected! Activating...');
+        showToast?.('Wake word detected! Say your command...', 'success');
+        
+        setTimeout(() => {
+          startListening();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Wake word confirmation error:', error);
+      // Fallback to activation even if confirmation fails
+      setVoiceStatus('Wake word detected! Activating...');
+      startListening();
+    }
+  };
+
+  // Wake word detection
+  const wakeWordDetection = useWakeWordDetection({
+    autoStart: wakeWordEnabled,
+    sensitivity: 0.7,
+    wakeWords: ['hey jodex', 'hi jodex'],
+    onWakeWordDetected: handleWakeWordDetected,
+    onError: (error) => {
+      console.error('Wake word detection error:', error);
+      if (wakeWordEnabled) {
+        showToast?.('Wake word detection error: ' + error.message, 'warning');
+      }
+    },
+    onStatusChange: (newStatus, oldStatus) => {
+      console.log(`Wake word status: ${oldStatus} → ${newStatus}`);
+    }
+  });
 
   // Validate environment and initialize on component mount
   useEffect(() => {
@@ -280,7 +369,7 @@ const VoiceAssistantComponent = ({
       setVoiceStatus('Speaking...');
       setIsSpeaking(true);
 
-      // Text-to-speech using browser API
+      // Set up audio stream for visualizer
       if ('speechSynthesis' in window && !isMuted) {
         const utterance = new SpeechSynthesisUtterance(response.text);
         utterance.rate = 0.9;
@@ -291,15 +380,35 @@ const VoiceAssistantComponent = ({
         const englishVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
         if (englishVoice) utterance.voice = englishVoice;
 
+        // Capture audio stream for visualizer
+        utterance.onstart = () => {
+          // Create audio context and destination
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const destination = audioContext.createMediaStreamDestination();
+          const source = audioContext.createMediaStreamSource();
+          
+          // Connect utterance to destination
+          const gainNode = audioContext.createGain();
+          gainNode.gain.value = volume;
+          
+          source.connect(gainNode);
+          gainNode.connect(destination);
+          
+          // Store the stream for visualizer
+          setAudioStream(destination.stream);
+        };
+
         utterance.onend = () => {
           setIsSpeaking(false);
           setVoiceStatus('Ready');
+          setAudioStream(null);
         };
 
-        utterance.onerror = () => {
+        utterance.onerror = (error) => {
+          console.error('Speech synthesis error:', error);
           setIsSpeaking(false);
           setVoiceStatus('Ready');
-          console.error('Speech synthesis error');
+          setAudioStream(null);
         };
 
         speechSynthesis.speak(utterance);
@@ -320,6 +429,7 @@ const VoiceAssistantComponent = ({
       console.error('Response handling error:', err);
       setIsSpeaking(false);
       setVoiceStatus('Ready');
+      setAudioStream(null);
     }
   };
 
@@ -357,12 +467,19 @@ const VoiceAssistantComponent = ({
       {/* Voice Assistant Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <div className="flex items-center space-x-3">
-          <div className={`relative ${isListening ? 'animate-pulse' : ''}`}>
-            <Bot className="w-6 h-6 text-emerald-600" />
-            {isListening && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
-            )}
-          </div>
+          <VoiceFeedbackIndicator
+            isListening={isListening}
+            isSpeaking={isSpeaking}
+            isConnected={isConnected}
+            volume={volume}
+            status={voiceStatus}
+            showText={false}
+            size="sm"
+            isWakeWordActive={wakeWordDetection.isActive}
+            wakeWordStatus={wakeWordDetection.status}
+            wakeWordDetected={wakeWordDetection.isDetected}
+            audioLevel={wakeWordDetection.audioLevel}
+          />
           <div>
             <h3 className="font-semibold text-gray-900">Voice Assistant</h3>
             <p className="text-sm text-gray-500">{voiceStatus}</p>
@@ -370,6 +487,32 @@ const VoiceAssistantComponent = ({
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* Wake Word Toggle */}
+          <button
+            onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
+            className={`p-2 rounded-lg transition-colors ${
+              wakeWordEnabled
+                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+            title={wakeWordEnabled ? 'Disable wake word' : 'Enable wake word'}
+          >
+            {wakeWordEnabled ? (
+              <Bot className="w-5 h-5" />
+            ) : (
+              <Bot className="w-5 h-5 opacity-50" />
+            )}
+          </button>
+
+          {/* Visualizer Toggle */}
+          <button
+            onClick={() => setShowVisualizerControls(!showVisualizerControls)}
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            title={showVisualizerControls ? 'Hide visualizer' : 'Show visualizer'}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
           {/* Volume Control */}
           <button
             onClick={toggleMute}
@@ -457,11 +600,56 @@ const VoiceAssistantComponent = ({
           </button>
         </div>
 
+        {/* Voice Visualizer */}
+        <div className="mb-4">
+          <VoiceVisualizer
+            isActive={isSpeaking || isListening}
+            mode={visualizerMode}
+            theme={visualizerTheme}
+            sensitivity={visualizerSensitivity}
+            height={visualizerHeight}
+            audioStream={audioStream}
+            showControls={true}
+          />
+        </div>
+
+        {/* Visualizer Controls Overlay */}
+        {showVisualizerControls && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
+              <VoiceVisualizerControls
+                mode={visualizerMode}
+                theme={visualizerTheme}
+                sensitivity={visualizerSensitivity}
+                height={visualizerHeight}
+                showControls={true}
+                onModeChange={setVisualizerMode}
+                onThemeChange={setVisualizerTheme}
+                onSensitivityChange={setVisualizerSensitivity}
+                onHeightChange={setVisualizerHeight}
+                onControlsToggle={() => setShowVisualizerControls(false)}
+                className="w-full"
+              />
+              
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setShowVisualizerControls(false)}
+                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Voice Tips */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
             {isConnected
-              ? `Try saying: "Check my inventory", "Check deliveries", "Weather forecast", "Market prices"`
+              ? wakeWordEnabled
+                ? `Say "Hey Jodex" to activate, or try: "Check my inventory", "Check deliveries", "Weather forecast", "Market prices"`
+                : `Try saying: "Check my inventory", "Check deliveries", "Weather forecast", "Market prices"`
               : 'Connecting to voice service...'
             }
           </p>
