@@ -6,14 +6,32 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "voice:start": "node agent/voice-agent-simple.js",
+    "voice:dev": "NODE_ENV=development node agent/voice-agent-simple.js",
+    "voice:pm2": "pm2 start ecosystem.config.js",
+    "voice:stop": "pm2 stop cacao-voice-agent",
+    "voice:restart": "pm2 restart cacao-voice-agent",
+    "voice:logs": "pm2 logs cacao-voice-agent",
+    "voice:status": "pm2 show cacao-voice-agent",
+    "voice:setup": "./scripts/start-voice-agent.sh"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.2",
+    "@livekit/agents": "^1.0.20",
+    "@livekit/components-react": "^2.9.16",
+    "@livekit/rtc-node": "^0.13.21",
     "@supabase/supabase-js": "^2.83.0",
+    "dotenv": "^17.2.3",
+    "groq-sdk": "^0.36.0",
+    "livekit-client": "^2.16.0",
+    "livekit-server-sdk": "^2.14.2",
     "lucide-react": "^0.554.0",
     "next": "16.0.3",
+    "pm2": "^6.0.13",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
