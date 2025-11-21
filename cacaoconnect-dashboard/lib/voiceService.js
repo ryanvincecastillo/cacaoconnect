@@ -11,9 +11,10 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Initialize Deepgram for Speech-to-Text
 let deepgram = null;
-if (typeof window === 'undefined' && process.env.DEEPGRAM_API_KEY) {
-  deepgram = new Deepgram(process.env.DEEPGRAM_API_KEY);
-}
+// Temporarily disabled to fix build issues
+// if (typeof window === 'undefined' && process.env.DEEPGRAM_API_KEY) {
+//   deepgram = new Deepgram(process.env.DEEPGRAM_API_KEY);
+// }
 
 // Initialize Groq for LLM processing
 let groq = null;
@@ -68,7 +69,7 @@ export const FARMING_COMMANDS = {
 
   // Pickup Scheduling
   SCHEDULE_PICKUP: {
-    patterns: [/schedule\s+pickup/i, /arrange\s+pickup/i,pickup\s+date/i],
+    patterns: [/schedule\s+pickup/i, /arrange\s+pickup/i, /pickup\s+date/i],
     action: 'schedule_pickup',
     description: 'Schedule a pickup for processed cocoa'
   }
@@ -315,7 +316,7 @@ export class VoiceService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: `As a cocoa farming assistant, please answer this question from a farmer: ${query}`
+          messages: [{ role: 'user', content: `As a cocoa farming assistant, please answer this question from a farmer: ${query}` }]
         })
       });
 
@@ -349,11 +350,11 @@ export class SpeechToTextService {
     }
 
     try {
-      const response = await deepgram.transcription.preRecorded({
+      const response = await deepgram.listen.prerecorded({
         buffer: audioData,
         mimetype: 'audio/webm' // Adjust based on your audio format
       }, {
-        model: 'nova',
+        model: 'nova-2',
         language: 'en-US',
         smart_format: true
       });

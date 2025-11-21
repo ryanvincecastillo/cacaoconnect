@@ -21,6 +21,7 @@ import { RoomEvent } from 'livekit-client';
 
 // Environment validation
 import { isVoiceAssistantConfigured, getEnvVars, validateClientEnv } from '../lib/env-validation';
+import { VoiceService } from '../lib/voiceService';
 
 const VoiceAssistantComponent = ({
   userId,
@@ -143,20 +144,79 @@ const VoiceAssistantComponent = ({
       return;
     }
 
+    // Check if browser supports speech recognition
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      setError('Speech recognition not supported in this browser');
+      setVoiceStatus('Speech recognition not supported');
+      showToast?.('Speech recognition is not supported in your browser', 'error');
+      return;
+    }
+
     try {
       setIsListening(true);
       setVoiceStatus('Listening...');
       setError(null);
 
-      // For now, simulate voice recognition since we don't have full LiveKit audio setup
-      // In production, this would interface with the LiveKit room's audio tracks
+      // Initialize speech recognition
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
 
-      setTimeout(() => {
-        // Simulate voice recognition result
-        const simulatedTranscript = "check my inventory";
-        handleVoiceCommand(simulatedTranscript);
+      // Configure recognition
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Speech recognized:', transcript);
+        handleVoiceCommand(transcript);
         stopListening();
-      }, 2000);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        let errorMessage = 'Speech recognition failed';
+
+        switch (event.error) {
+          case 'no-speech':
+            errorMessage = 'No speech detected. Please try again.';
+            break;
+          case 'audio-capture':
+            errorMessage = 'Microphone not available. Please check permissions.';
+            break;
+          case 'not-allowed':
+            errorMessage = 'Microphone access denied. Please allow microphone access.';
+            break;
+          case 'network':
+            errorMessage = 'Network error. Speech recognition requires HTTPS. You can also type your command below.';
+            // Show text input fallback after a delay
+            setTimeout(() => {
+              const userInput = prompt('Speech recognition failed. Type your command:');
+              if (userInput && userInput.trim()) {
+                handleVoiceCommand(userInput.trim());
+              }
+            }, 1000);
+            break;
+          default:
+            errorMessage = `Speech recognition error: ${event.error}`;
+        }
+
+        setError(errorMessage);
+        setVoiceStatus('Error');
+        showToast?.(errorMessage, 'error');
+        stopListening();
+      };
+
+      recognition.onend = () => {
+        if (isListening) {
+          stopListening();
+        }
+      };
+
+      // Store recognition instance and start
+      recognitionRef.current = recognition;
+      recognition.start();
 
     } catch (err) {
       console.error('Microphone access error:', err);
@@ -167,10 +227,23 @@ const VoiceAssistantComponent = ({
     }
   };
 
+  // Ref to store recognition instance
+  const recognitionRef = useRef(null);
+
   // Stop voice recording
   const stopListening = () => {
     setIsListening(false);
     setVoiceStatus('Ready');
+
+    // Stop speech recognition if it's running
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      } catch (error) {
+        console.log('Speech recognition already stopped or not running');
+      }
+    }
 
     // Stop any ongoing audio streams
     if (audioRef.current) {
@@ -185,18 +258,11 @@ const VoiceAssistantComponent = ({
       setLastTranscript(transcript);
       setVoiceStatus('Processing...');
 
-      // Parse the command using our voice service
-      const command = parseCommand(transcript);
+      // Use VoiceService for sophisticated command parsing and response generation
+      const command = VoiceService.parseCommand(transcript);
+      const response = await VoiceService.generateResponse(command, { userId });
 
-      // Call the voice command handler if provided
-      if (onVoiceCommand) {
-        const response = await onVoiceCommand(command);
-        handleAssistantResponse(response);
-      } else {
-        // Fallback to basic command handling
-        const response = await handleBasicCommand(command);
-        handleAssistantResponse(response);
-      }
+      handleAssistantResponse(response);
 
     } catch (err) {
       console.error('Voice command processing error:', err);
@@ -206,98 +272,6 @@ const VoiceAssistantComponent = ({
     }
   };
 
-  // Parse voice command (simplified version)
-  const parseCommand = (text) => {
-    const lowerText = text.toLowerCase().trim();
-
-    // Order commitment
-    const commitMatch = lowerText.match(/commit\s+(\d+)\s*(?:kg|kilograms?)?\s+(?:to\s+)?order\s*(\w+)/i);
-    if (commitMatch) {
-      return {
-        intent: 'commit_volume',
-        entities: {
-          volume: parseFloat(commitMatch[1]),
-          orderId: commitMatch[2]
-        },
-        originalText: text
-      };
-    }
-
-    // Inventory check
-    if (/check\s+(?:my\s+)?inventory|what\s+(?:do|i)\s+have/.test(lowerText)) {
-      return {
-        intent: 'check_inventory',
-        entities: {},
-        originalText: text
-      };
-    }
-
-    // Delivery check
-    if (/check\s+(?:my\s+)?deliveries|pending\s+deliveries/.test(lowerText)) {
-      return {
-        intent: 'check_deliveries',
-        entities: {},
-        originalText: text
-      };
-    }
-
-    // Weather
-    if (/weather\s+forecast|weather\s+update/.test(lowerText)) {
-      return {
-        intent: 'weather_forecast',
-        entities: {},
-        originalText: text
-      };
-    }
-
-    return {
-      intent: 'general_query',
-      entities: { query: text },
-      originalText: text
-    };
-  };
-
-  // Handle basic voice commands
-  const handleBasicCommand = async (command) => {
-    const { intent, entities } = command;
-
-    switch (intent) {
-      case 'check_inventory':
-        return {
-          text: "I'll check your current inventory for you. Let me access that information now.",
-          action: 'check_inventory',
-          data: null
-        };
-
-      case 'check_deliveries':
-        return {
-          text: "I'm checking your delivery status. Let me see what deliveries you have pending.",
-          action: 'check_deliveries',
-          data: null
-        };
-
-      case 'commit_volume':
-        return {
-          text: `I can help you commit ${entities.volume} kilograms to order ${entities.orderId}. Please confirm this commitment.`,
-          action: 'confirm_commitment',
-          data: entities
-        };
-
-      case 'weather_forecast':
-        return {
-          text: "The weather forecast looks favorable for cocoa farming this week. Expect moderate rainfall and temperatures between 22-28°C.",
-          action: 'weather_report',
-          data: null
-        };
-
-      default:
-        return {
-          text: "I'm your cocoa farming assistant. You can ask me about your inventory, deliveries, orders, or weather conditions.",
-          action: null,
-          data: null
-        };
-    }
-  };
 
   // Handle assistant response
   const handleAssistantResponse = async (response) => {
@@ -486,7 +460,10 @@ const VoiceAssistantComponent = ({
         {/* Voice Tips */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            {`Try saying: "Check my inventory", "Check deliveries", "Commit 50kg to order ABC"`}
+            {isConnected
+              ? `Try saying: "Check my inventory", "Check deliveries", "Weather forecast", "Market prices"`
+              : 'Connecting to voice service...'
+            }
           </p>
         </div>
       </div>

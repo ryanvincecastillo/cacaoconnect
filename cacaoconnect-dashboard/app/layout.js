@@ -46,29 +46,39 @@ export default function RootLayout({ children }) {
   const handleVoiceCommand = async (command) => {
     console.log('Voice command received:', command);
 
-    // This would integrate with the voice service
-    // For now, return a basic response
-    if (command.intent === 'check_inventory') {
+    try {
+      // Call the voice command API for dynamic responses
+      const response = await fetch('/api/voice-command', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          command: command.originalText || command.text || 'Unknown command',
+          userId: currentUser,
+          userType: userType
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API response: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Voice command API response:', data);
+
+      return data;
+
+    } catch (error) {
+      console.error('Voice command API error:', error);
+
+      // Fallback response if API fails
       return {
-        text: "I'm checking your inventory. You currently have 150kg of Grade A cocoa beans and 75kg of Grade B beans.",
-        action: 'inventory_report',
-        data: { gradeA: 150, gradeB: 75 }
+        text: "I'm having trouble connecting to my systems right now. Please try again in a moment. You can ask me about inventory, deliveries, weather, or market prices.",
+        action: 'error',
+        data: null
       };
     }
-
-    if (command.intent === 'check_deliveries') {
-      return {
-        text: "You have 2 deliveries ready for pickup and 1 in transit. The ready deliveries total 125kg of cocoa beans.",
-        action: 'delivery_report',
-        data: { ready: 2, inTransit: 1, totalVolume: 125 }
-      };
-    }
-
-    return {
-      text: "I understand your request. How can I help you with your cocoa farming today?",
-      action: null,
-      data: null
-    };
   };
 
   const showToast = (message, type = 'info') => {
