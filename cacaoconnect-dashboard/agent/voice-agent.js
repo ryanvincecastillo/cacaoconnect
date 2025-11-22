@@ -4,6 +4,7 @@ const { Worker, initializeLogger } = require('@livekit/agents');
 const { Groq } = require('groq-sdk');
 const { createClient } = require('@supabase/supabase-js');
 const { WebSocket } = require('ws');
+const { AudioBufferUtils, AudioProcessor } = require('../lib/audioUtils');
 
 // Initialize LiveKit logger
 initializeLogger({ pretty: true, level: 'info' });
@@ -17,7 +18,10 @@ const {
   DEEPGRAM_API_KEY,
   GROQ_API_KEY,
   NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY
+  NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  ASSISTANT_VOICE,
+  ASSISTANT_VOICE_RATE,
+  ASSISTANT_VOICE_PITCH
 } = process.env;
 
 // Initialize Groq for LLM processing
@@ -25,6 +29,14 @@ const groq = new Groq({ apiKey: GROQ_API_KEY });
 
 // Initialize Supabase for data access
 const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+// Audio processing configuration
+const AUDIO_CONFIG = {
+  sampleRate: 16000,
+  channels: 1,
+  frameSize: 1024,
+  maxAudioBuffer: 10 * 1024 * 1024 // 10MB
+};
 
 // Farming-specific voice agent class
 class CacaoVoiceAgent extends Worker {
@@ -35,9 +47,35 @@ class CacaoVoiceAgent extends Worker {
   }
 
   initializeVoiceHandlers() {
+    this.audioBuffer = [];
+    this.isProcessing = false;
+    this.participantAudioStreams = new Map();
+
     this.on('participant_connected', (participant) => {
       console.log(`Farmer/Processor connected: ${participant.identity}`);
+      this.setupParticipantAudioStream(participant);
       this.greetUser(participant.identity);
+    });
+
+    this.on('participant_disconnected', (participant) => {
+      console.log(`Farmer/Processor disconnected: ${participant.identity}`);
+      this.cleanupParticipantAudioStream(participant);
+    });
+
+    this.on('track_subscribed', (track, publication, participant) => {
+      console.log(`Track subscribed: ${track.kind} from ${participant.identity}`);
+
+      if (track.kind === 'audio') {
+        this.handleAudioTrack(track, participant);
+      }
+    });
+
+    this.on('track_unsubscribed', (track, publication, participant) => {
+      console.log(`Track unsubscribed: ${track.kind} from ${participant.identity}`);
+
+      if (track.kind === 'audio') {
+        this.cleanupAudioTrack(track, participant);
+      }
     });
 
     this.on('data_received', async (data, participant) => {
@@ -50,40 +88,244 @@ class CacaoVoiceAgent extends Worker {
     });
   }
 
-  async processVoiceData(data, participant) {
-    const { audioData, userId } = data;
+  setupParticipantAudioStream(participant) {
+    this.participantAudioStreams.set(participant.identity, {
+      buffer: [],
+      isActive: true,
+      lastActivity: Date.now()
+    });
+  }
 
-    // Step 1: Transcribe speech to text using Deepgram
-    const transcription = await this.transcribeAudio(audioData);
-    if (!transcription || transcription.trim().length === 0) {
-      return; // No speech detected
+  cleanupParticipantAudioStream(participant) {
+    this.participantAudioStreams.delete(participant.identity);
+  }
+
+  handleAudioTrack(track, participant) {
+    const participantStream = this.participantAudioStreams.get(participant.identity);
+    if (!participantStream) {
+      console.warn(`No stream found for participant: ${participant.identity}`);
+      return;
     }
 
-    console.log(`User said: "${transcription}"`);
-
-    // Step 2: Parse command and get context
-    const command = this.parseCommand(transcription);
-    const context = this.getConversationContext(userId);
-
-    // Step 3: Generate appropriate response
-    const response = await this.generateFarmingResponse(command, context, userId);
-
-    // Step 4: Update conversation context
-    this.updateConversationContext(userId, {
-      lastCommand: command,
-      lastResponse: response,
-      timestamp: Date.now()
+    track.on('frameReceived', (frame) => {
+      if (participantStream.isActive) {
+        this.processAudioFrame(frame, participant);
+      }
     });
+  }
 
-    // Step 5: Convert response to speech and send back
-    const audioResponse = await this.synthesizeSpeech(response.text);
-    this.sendAudioResponse(audioResponse, participant);
-
-    // Step 6: Handle any action that needs to be taken
-    if (response.action && response.data) {
-      await this.executeAction(response.action, response.data, userId, participant);
+  cleanupAudioTrack(track, participant) {
+    const participantStream = this.participantAudioStreams.get(participant.identity);
+    if (participantStream) {
+      participantStream.isActive = false;
     }
   }
+
+  async processAudioFrame(frame, participant) {
+    try {
+      // Convert LiveKit audio frame to processable format
+      const audioData = this.convertFrameToAudioData(frame);
+
+      if (!audioData || audioData.length === 0) return;
+
+      // Apply audio processing
+      const processedAudio = this.preprocessAudio(audioData);
+
+      // Add to participant's audio buffer
+      const participantStream = this.participantAudioStreams.get(participant.identity);
+      if (participantStream) {
+        participantStream.buffer.push(processedAudio);
+        participantStream.lastActivity = Date.now();
+
+        // Limit buffer size to prevent memory issues
+        if (participantStream.buffer.length > 1000) {
+          participantStream.buffer.shift();
+        }
+      }
+
+      // If buffer has enough data, process for transcription
+      if (this.shouldTranscribe(participantStream)) {
+        await this.transcribeAudioFromBuffer(participant);
+      }
+
+    } catch (error) {
+      console.error('Error processing audio frame:', error);
+    }
+  }
+
+  convertFrameToAudioData(frame) {
+    try {
+      // Convert LiveKit audio frame to Float32Array
+      if (frame.data instanceof Buffer) {
+        const float32Data = new Float32Array(frame.data.length / 2);
+        const int16Data = new Int16Array(frame.data.buffer, frame.data.byteOffset, frame.data.length / 2);
+
+        for (let i = 0; i < int16Data.length; i++) {
+          float32Data[i] = int16Data[i] / 32768.0; // Convert to -1 to 1 range
+        }
+
+        return float32Data;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error converting audio frame:', error);
+      return null;
+    }
+  }
+
+  preprocessAudio(audioData) {
+    try {
+      // Apply audio processing pipeline
+      let processedData = audioData;
+
+      // Normalize audio levels
+      processedData = AudioProcessor.normalizeAudio(processedData);
+
+      // Apply noise reduction
+      processedData = AudioProcessor.applyNoiseReduction(processedData, 0.01);
+
+      // Apply fade in/out to prevent clicks
+      processedData = AudioProcessor.applyFade(processedData, 0.01, 0.01, AUDIO_CONFIG.sampleRate);
+
+      return processedData;
+    } catch (error) {
+      console.error('Error preprocessing audio:', error);
+      return audioData;
+    }
+  }
+
+  shouldTranscribe(participantStream) {
+    if (!participantStream || participantStream.buffer.length === 0) {
+      return false;
+    }
+
+    // Check if we have enough audio data (approximately 1-2 seconds)
+    const totalSamples = participantStream.buffer.reduce((sum, chunk) => sum + chunk.length, 0);
+    const durationSeconds = totalSamples / AUDIO_CONFIG.sampleRate;
+
+    // Also check if there's been a pause in speech
+    const timeSinceLastActivity = Date.now() - participantStream.lastActivity;
+
+    return durationSeconds >= 1.0 || (durationSeconds >= 0.5 && timeSinceLastActivity > 1000);
+  }
+
+  async transcribeAudioFromBuffer(participant) {
+    const participantStream = this.participantAudioStreams.get(participant.identity);
+    if (!participantStream || this.isProcessing) return;
+
+    this.isProcessing = true;
+
+    try {
+      // Combine all audio chunks
+      const combinedAudio = this.combineAudioChunks(participantStream.buffer);
+
+      if (combinedAudio.length > 0) {
+        // Convert to Buffer for Deepgram
+        const audioBuffer = AudioBufferUtils.floatToInt16(combinedAudio);
+        const audioData = Buffer.from(audioBuffer.buffer);
+
+        // Transcribe the audio
+        const transcription = await this.transcribeAudio(audioData);
+
+        if (transcription && transcription.trim().length > 0) {
+          console.log(`Transcription from ${participant.identity}: "${transcription}"`);
+
+          // Process the transcribed text
+          await this.processTranscription(transcription, participant);
+        }
+      }
+
+      // Clear the buffer after processing
+      participantStream.buffer = [];
+
+    } catch (error) {
+      console.error('Error transcribing audio from buffer:', error);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  combineAudioChunks(chunks) {
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const combined = new Float32Array(totalLength);
+
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return combined;
+  }
+
+  async processTranscription(text, participant) {
+    try {
+      // Parse command and get context
+      const command = this.parseCommand(text);
+      const context = this.getConversationContext(participant.identity);
+
+      // Generate appropriate response
+      const response = await this.generateFarmingResponse(command, context, participant.identity);
+
+      // Update conversation context
+      this.updateConversationContext(participant.identity, {
+        lastCommand: command,
+        lastResponse: response,
+        timestamp: Date.now()
+      });
+
+      // Convert response to speech and send back
+      await this.sendAudioResponse(response.text, participant);
+
+      // Handle any action that needs to be taken
+      if (response.action && response.data) {
+        await this.executeAction(response.action, response.data, participant.identity, participant);
+      }
+
+    } catch (error) {
+      console.error('Error processing transcription:', error);
+      this.sendErrorMessage(participant, "I'm having trouble processing that. Please try again.");
+    }
+  }
+
+  // Legacy method - replaced by real-time audio processing pipeline
+// Kept for compatibility with any existing client implementations
+async processVoiceData(data, participant) {
+  console.warn('Using legacy processVoiceData method. Consider upgrading to real-time audio processing.');
+
+  const { audioData, userId } = data;
+
+  // Step 1: Transcribe speech to text using Deepgram
+  const transcription = await this.transcribeAudio(audioData);
+  if (!transcription || transcription.trim().length === 0) {
+    return; // No speech detected
+  }
+
+  console.log(`User said: "${transcription}"`);
+
+  // Step 2: Parse command and get context
+  const command = this.parseCommand(transcription);
+  const context = this.getConversationContext(userId);
+
+  // Step 3: Generate appropriate response
+  const response = await this.generateFarmingResponse(command, context, userId);
+
+  // Step 4: Update conversation context
+  this.updateConversationContext(userId, {
+    lastCommand: command,
+    lastResponse: response,
+    timestamp: Date.now()
+  });
+
+  // Step 5: Convert response to speech and send back
+  await this.sendAudioResponse(response.text, participant);
+
+  // Step 6: Handle any action that needs to be taken
+  if (response.action && response.data) {
+    await this.executeAction(response.action, response.data, userId, participant);
+  }
+}
 
   // Parse farming-specific commands
   parseCommand(text) {
@@ -454,16 +696,136 @@ class CacaoVoiceAgent extends Worker {
   // --- UTILITY METHODS ---
 
   async transcribeAudio(audioData) {
-    // This would integrate with Deepgram's STT API
-    // For now, return a placeholder
-    console.log('Transcribing audio data...');
-    return audioData.toString(); // Placeholder - implement actual Deepgram integration
+    // Enhanced transcription with Deepgram STT
+    try {
+      console.log('Transcribing audio data...');
+      const { SpeechToTextService } = require('../lib/voiceService');
+
+      const transcription = await SpeechToTextService.transcribeAudio(audioData, {
+        mimetype: 'audio/webm', // Adjust based on actual audio format
+        language: 'en-US',
+        model: 'nova-2'
+      });
+
+      console.log(`Transcription result: "${transcription}"`);
+      return transcription;
+
+    } catch (error) {
+      console.error('Transcription failed:', error.message);
+
+      // Fallback to simple text processing for demo purposes
+      if (audioData && typeof audioData.toString === 'function') {
+        const fallbackText = audioData.toString().trim();
+        if (fallbackText && fallbackText.length > 0) {
+          console.log('Using fallback transcription');
+          return fallbackText;
+        }
+      }
+
+      // Return empty transcription if all methods fail
+      return '';
+    }
   }
 
   async synthesizeSpeech(text) {
-    // This would integrate with Deepgram's TTS API
-    // For now, return the text as-is (the client will handle TTS)
-    return text;
+    // Use enhanced TTS with humanization features
+    try {
+      // Try Deepgram Aura first for more natural voice with humanization
+      const { TextToSpeechService } = require('../lib/voiceService');
+      const voiceConfig = TextToSpeechService.getVoiceConfig();
+
+      console.log(`Synthesizing speech with voice: ${voiceConfig.voice}, rate: ${voiceConfig.rate}, pitch: ${voiceConfig.pitch}`);
+
+      return await TextToSpeechService.synthesizeSpeechWithDeepgram(text, {
+        voice: voiceConfig.voice,
+        emotion: voiceConfig.emotion,
+        rate: voiceConfig.rate,
+        pitch: voiceConfig.pitch,
+        volume: voiceConfig.volume
+      });
+    } catch (error) {
+      console.error('Advanced TTS failed, falling back to basic:', error);
+      // Fallback to returning text (client will handle basic TTS)
+      return text;
+    }
+  }
+
+  async sendAudioResponse(text, participant) {
+    try {
+      console.log(`Sending audio response to ${participant.identity}: "${text}"`);
+
+      // Generate speech audio
+      const audioResponse = await this.synthesizeSpeech(text);
+
+      if (audioResponse && typeof audioResponse === 'object' && audioResponse.byteLength) {
+        // Send audio through LiveKit
+        await this.publishAudioToParticipant(audioResponse, participant);
+      } else if (typeof audioResponse === 'string') {
+        // Fallback to text if TTS failed
+        this.sendTextMessage(text, participant);
+      }
+
+    } catch (error) {
+      console.error('Error sending audio response:', error);
+      // Fallback to text message
+      this.sendTextMessage(text, participant);
+    }
+  }
+
+  async publishAudioToParticipant(audioBuffer, participant) {
+    try {
+      // This is a simplified implementation
+      // In a real LiveKit implementation, you would:
+      // 1. Convert audio buffer to the correct format
+      // 2. Create an audio track
+      // 3. Publish the track to the participant
+
+      console.log(`Publishing audio (${audioBuffer.byteLength} bytes) to ${participant.identity}`);
+
+      // For now, we'll use a data channel to send the audio
+      // This would be replaced with proper LiveKit audio track publishing
+      this sendDataToParticipant({
+        type: 'audio_response',
+        audioData: Array.from(new Uint8Array(audioBuffer)),
+        timestamp: Date.now()
+      }, participant);
+
+    } catch (error) {
+      console.error('Error publishing audio:', error);
+      throw error;
+    }
+  }
+
+  sendTextMessage(text, participant) {
+    try {
+      console.log(`Sending text message to ${participant.identity}: "${text}"`);
+
+      this.sendDataToParticipant({
+        type: 'text_response',
+        text: text,
+        timestamp: Date.now()
+      }, participant);
+
+    } catch (error) {
+      console.error('Error sending text message:', error);
+    }
+  }
+
+  sendDataToParticipant(data, participant) {
+    try {
+      const message = JSON.stringify(data);
+
+      // Use LiveKit's data channel to send the message
+      if (participant.dataChannel) {
+        participant.dataChannel.send(message);
+      } else {
+        // Fallback to direct participant communication
+        participant.publishData(message, { reliable: true });
+      }
+
+    } catch (error) {
+      console.error('Error sending data to participant:', error);
+    }
   }
 
   greetUser(userId) {

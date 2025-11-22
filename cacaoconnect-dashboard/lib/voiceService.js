@@ -11,10 +11,17 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Initialize Deepgram for Speech-to-Text
 let deepgram = null;
-// Temporarily disabled to fix build issues
-// if (typeof window === 'undefined' && process.env.DEEPGRAM_API_KEY) {
-//   deepgram = new Deepgram(process.env.DEEPGRAM_API_KEY);
-// }
+
+// Initialize Deepgram only on server-side with proper error handling
+try {
+  if (typeof window === 'undefined' && process.env.DEEPGRAM_API_KEY) {
+    deepgram = new Deepgram(process.env.DEEPGRAM_API_KEY);
+    console.log('✅ Deepgram initialized successfully');
+  }
+} catch (error) {
+  console.warn('⚠️ Deepgram initialization failed:', error.message);
+  console.log('Falling back to browser Web Speech API for speech recognition');
+}
 
 // Initialize Groq for LLM processing
 let groq = null;
@@ -344,48 +351,252 @@ export class VoiceService {
 
 export class SpeechToTextService {
 
-  static async transcribeAudio(audioData) {
+  static async transcribeAudio(audioData, options = {}) {
+    const {
+      mimetype = 'audio/webm',
+      language = 'en-US',
+      model = 'nova-2'
+    } = options;
+
+    // Try Deepgram first if available
+    if (deepgram) {
+      try {
+        console.log('Transcribing audio with Deepgram...');
+        const response = await deepgram.listen.prerecorded({
+          buffer: audioData,
+          mimetype: mimetype
+        }, {
+          model: model,
+          language: language,
+          smart_format: true,
+          punctuate: true,
+          profanity_filter: false
+        });
+
+        const transcript = response.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+        console.log(`Deepgram transcription: "${transcript}"`);
+        return transcript;
+      } catch (error) {
+        console.warn('Deepgram transcription failed:', error.message);
+        return this.fallbackTranscription(audioData);
+      }
+    }
+
+    // Fallback to browser Web Speech API if available
+    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
+      return this.browserTranscription(audioData);
+    }
+
+    throw new Error('No speech recognition available. Please set DEEPGRAM_API_KEY or use a supported browser.');
+  }
+
+  static async fallbackTranscription(audioData) {
+    // Simple fallback - return empty transcription for now
+    // In a real implementation, you could:
+    // 1. Use a different STT service
+    // 2. Store audio for manual transcription
+    // 3. Use cached transcription if available
+    console.warn('Using fallback transcription - this returns empty text');
+    return '';
+  }
+
+  static async browserTranscription(audioData) {
+    return new Promise((resolve, reject) => {
+      if (!('webkitSpeechRecognition' in window)) {
+        reject(new Error('Web Speech API not supported'));
+        return;
+      }
+
+      const recognition = new webkitSpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        resolve(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        reject(new Error(`Speech recognition error: ${event.error}`));
+      };
+
+      recognition.start();
+    });
+  }
+
+  // Real-time transcription for live audio streams
+  static createRealtimeTranscriber(options = {}) {
     if (!deepgram) {
-      throw new Error('Deepgram not initialized. Check DEEPGRAM_API_KEY.');
+      throw new Error('Deepgram not available for real-time transcription');
     }
 
-    try {
-      const response = await deepgram.listen.prerecorded({
-        buffer: audioData,
-        mimetype: 'audio/webm' // Adjust based on your audio format
-      }, {
-        model: 'nova-2',
-        language: 'en-US',
-        smart_format: true
-      });
+    const {
+      language = 'en-US',
+      model = 'nova-2',
+      onTranscript = () => {},
+      onError = () => {}
+    } = options;
 
-      return response.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-    } catch (error) {
-      console.error('STT Error:', error);
-      throw new Error('Failed to transcribe audio');
-    }
+    return deepgram.listen.live({
+      model: model,
+      language: language,
+      punctuate: true,
+      smart_format: true
+    })
+    .on('transcriptReceived', (transcript) => {
+      const result = transcript.channel?.alternatives?.[0]?.transcript;
+      if (result) {
+        onTranscript(result);
+      }
+    })
+    .on('error', (error) => {
+      console.error('Real-time transcription error:', error);
+      onError(error);
+    });
   }
 }
 
-// --- TEXT-TO-SPEECH UTILITIES (Enhanced) ---
+// --- EMOTIONAL INTELLIGENCE UTILITIES (Enhanced) ---
+
+export class EmotionalIntelligence {
+
+  static detectEmotion(text) {
+    const lowerText = text.toLowerCase();
+
+    // Multi-dimensional emotion detection with scoring
+    const emotionScores = {
+      enthusiastic: 0,
+      concerned: 0,
+      neutral: 0,
+      friendly: 0
+    };
+
+    // Positive emotion indicators
+    const enthusiasticWords = ['great', 'excellent', 'wonderful', 'fantastic', 'amazing', 'successful', 'approved', 'perfect', 'outstanding'];
+    const enthusiasticEmphasis = /\!\!|\*\*.*?\*\*|congratulations|bravo/;
+
+    // Concern/Warning indicators
+    const concernedWords = ['error', 'problem', 'failed', 'unable', 'apologize', 'sorry', 'unfortunately', 'issue', 'trouble', 'difficult'];
+    const concernedEmphasis = /\b(?:immediately|urgent|important|critical|warning)\b/;
+
+    // Neutral/Information indicators
+    const neutralWords = ['currently', 'status', 'report', 'information', 'kilograms', 'inventory', 'data', 'details', 'statistics'];
+
+    // Helpful/Friendly indicators
+    const friendlyWords = ['help', 'assist', 'support', 'guide', 'please', 'thank you', 'welcome', 'happy to', 'glad to'];
+
+    // Score emotions based on word presence
+    enthusiasticWords.forEach(word => {
+      if (lowerText.includes(word)) emotionScores.enthusiastic += 2;
+    });
+
+    concernedWords.forEach(word => {
+      if (lowerText.includes(word)) emotionScores.concerned += 2;
+    });
+
+    neutralWords.forEach(word => {
+      if (lowerText.includes(word)) emotionScores.neutral += 1;
+    });
+
+    friendlyWords.forEach(word => {
+      if (lowerText.includes(word)) emotionScores.friendly += 1;
+    });
+
+    // Bonus points for emphasis patterns
+    if (enthusiasticEmphasis.test(text)) emotionScores.enthusiastic += 3;
+    if (concernedEmphasis.test(text)) emotionScores.concerned += 3;
+
+    // Default to friendly if no strong signals
+    if (Object.values(emotionScores).every(score => score === 0)) {
+      emotionScores.friendly = 1;
+    }
+
+    // Return emotion with highest score
+    return Object.keys(emotionScores).reduce((a, b) =>
+      emotionScores[a] > emotionScores[b] ? a : b
+    );
+  }
+  
+  static enhanceTextWithEmotion(text, emotion) {
+    const emotionPrefixes = {
+      enthusiastic: ['Great news!', 'Excellent!', 'Wonderful!', 'Fantastic!'],
+      concerned: ['I understand your concern.', 'Let me help you with that.', 'I apologize for the inconvenience.'],
+      neutral: ['Here\'s the information you requested.', 'Let me provide you with an update.'],
+      friendly: ['I\'d be happy to help you with that.', 'Certainly!', 'Of course!']
+    };
+    
+    const emotionSuffixes = {
+      enthusiastic: [' Is there anything else I can help you with?', ' Feel free to ask if you need anything else!'],
+      concerned: [' Please let me know if you need further assistance.', ' I\'m here to help resolve any issues.'],
+      neutral: [' Let me know if you need more details.', ' Is there anything specific you\'d like to know?'],
+      friendly: [' How else can I assist you today?', ' I\'m here whenever you need me!']
+    };
+    
+    const prefixes = emotionPrefixes[emotion] || emotionPrefixes.friendly;
+    const suffixes = emotionSuffixes[emotion] || emotionSuffixes.friendly;
+    
+    // Randomly select prefix and suffix for variety
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+    
+    // Add emotion-specific interjections
+    const interjections = {
+      enthusiastic: ['Oh, ', 'Wow, ', 'Excellent! '],
+      concerned: ['Hmm, ', 'Well, ', 'I see. '],
+      neutral: ['', '', ''],
+      friendly: ['', '', '']
+    };
+    
+    const interjection = interjections[emotion][Math.floor(Math.random() * interjections[emotion].length)];
+    
+    return `${prefix} ${interjection}${text}${suffix}`;
+  }
+}
+
+// --- TEXT-TO-SPEECH UTILITIES (Enhanced with Humanization) ---
 
 export class TextToSpeechService {
 
+  // Get voice configuration from environment variables
+  static getVoiceConfig() {
+    return {
+      voice: process.env.ASSISTANT_VOICE || 'en-US-Ava',
+      rate: parseFloat(process.env.ASSISTANT_VOICE_RATE) || 1.0,
+      pitch: parseFloat(process.env.ASSISTANT_VOICE_PITCH) || 1.0,
+      volume: parseFloat(process.env.ASSISTANT_VOICE_VOLUME) || 1.0,
+      emotion: process.env.ASSISTANT_VOICE_EMOTION || 'friendly',
+      stability: parseFloat(process.env.ASSISTANT_VOICE_STABILITY) || 0.8,
+      similarity_boost: parseFloat(process.env.ASSISTANT_VOICE_SIMILARITY_BOOST) || 0.8,
+      pause_duration: parseInt(process.env.ASSISTANT_VOICE_PAUSE_DURATION) || 500,
+      breathing_enabled: process.env.ASSISTANT_VOICE_BREATHING_ENABLED === 'true'
+    };
+  }
+
   static async synthesizeSpeech(text, options = {}) {
+    const config = this.getVoiceConfig();
     const {
-      voice = process.env.ASSISTANT_VOICE || 'en-US-Ava',
-      rate = 0.9,
-      pitch = 1,
-      volume = 1
+      voice = config.voice,
+      rate = config.rate,
+      pitch = config.pitch,
+      volume = config.volume,
+      emotion = config.emotion
     } = options;
+
+    // Detect and enhance emotion
+    const detectedEmotion = EmotionalIntelligence.detectEmotion(text);
+    const enhancedText = this.addNaturalHumanization(text, detectedEmotion);
+
+    // Apply dynamic prosody control
+    const prosodySettings = this.calculateProsodySettings(enhancedText, detectedEmotion, { rate, pitch, volume });
 
     // Use browser's built-in speech synthesis as fallback
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       return new Promise((resolve, reject) => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = rate;
-        utterance.pitch = pitch;
-        utterance.volume = volume;
+        const utterance = new SpeechSynthesisUtterance(enhancedText);
+        utterance.rate = prosodySettings.rate;
+        utterance.pitch = prosodySettings.pitch;
+        utterance.volume = prosodySettings.volume;
 
         const voices = speechSynthesis.getVoices();
         const selectedVoice = voices.find(v => v.name.includes(voice.split('-')[1])) ||
@@ -403,6 +614,215 @@ export class TextToSpeechService {
 
     // For server-side, you would integrate with Deepgram's TTS API here
     throw new Error('Speech synthesis not available in this environment');
+  }
+  
+  // Add natural humanization features to speech
+  static addNaturalHumanization(text, emotion) {
+    const config = this.getVoiceConfig();
+    let enhancedText = text;
+
+    // Add breathing sounds for longer sentences
+    if (config.breathing_enabled && text.length > 100) {
+      enhancedText = this.insertBreathingPauses(enhancedText);
+    }
+
+    // Add natural speech patterns
+    enhancedText = this.addNaturalSpeechPatterns(enhancedText, emotion);
+
+    // Add emphasis for important information
+    enhancedText = this.addStrategicEmphasis(enhancedText);
+
+    return enhancedText;
+  }
+
+  // Insert breathing pauses for natural speech
+  static insertBreathingPauses(text) {
+    // Insert pauses after commas and periods for natural breathing
+    return text
+      .replace(/,/g, ', *')
+      .replace(/\./g, '. *')
+      .replace(/\?/g, '? *')
+      .replace(/!/g, '! *')
+      .replace(/\* \*/g, '*'); // Clean up double pauses
+  }
+
+  // Add natural speech patterns and hesitations
+  static addNaturalSpeechPatterns(text, emotion) {
+    const patterns = {
+      enthusiastic: {
+        starters: ['Well! ', 'Oh, that\'s great! ', 'Excellent! '],
+        fillers: [' you know, ', ' actually, ', ' honestly, '],
+        connectors: [' So, ', ' And, ', ' You know, ']
+      },
+      concerned: {
+        starters: ['Hmm, ', 'Let me think about this... ', 'Well, '],
+        fillers: [' I mean, ', ' you see, ', ' basically, '],
+        connectors: [' However, ', ' But, ', ' On the other hand, ']
+      },
+      neutral: {
+        starters: ['Alright, ', 'Okay, ', 'Right, '],
+        fillers: [' essentially, ', ' basically, ', ' in fact, '],
+        connectors: [' So, ', ' And, ', ' Also, ']
+      },
+      friendly: {
+        starters: ['Sure! ', 'Of course! ', 'I\'d be happy to help! '],
+        fillers: [' by the way, ', ' just so you know, ', ' actually, '],
+        connectors: [' And, ', ' So, ', ' Also, ']
+      }
+    };
+
+    const emotionPattern = patterns[emotion] || patterns.friendly;
+    let result = text;
+
+    // Occasionally add natural starters (20% chance)
+    if (Math.random() < 0.2) {
+      const starter = emotionPattern.starters[Math.floor(Math.random() * emotionPattern.starters.length)];
+      result = starter + result.charAt(0).toLowerCase() + result.slice(1);
+    }
+
+    // Add occasional fillers for longer sentences (15% chance)
+    if (result.length > 50 && Math.random() < 0.15) {
+      const filler = emotionPattern.fillers[Math.floor(Math.random() * emotionPattern.fillers.length)];
+      const middle = Math.floor(result.length / 2);
+      result = result.slice(0, middle) + filler + result.slice(middle);
+    }
+
+    return result;
+  }
+
+  // Add strategic emphasis for important information
+  static addStrategicEmphasis(text) {
+    // Emphasize numbers, important keywords, and action items
+    return text
+      // Emphasize quantities
+      .replace(/(\d+)\s*(kg|kilograms?|tons?|percent|%|degrees?)/gi, '**$1 $2**')
+      // Emphasize important action words
+      .replace(/\b(immediately|urgent|important|critical|required|must|please)/gi, '**$1**')
+      // Emphasize grade letters
+      .replace(/\b(grade [ABC])\b/gi, '**$1**')
+      // Emphasize currency values
+      .replace(/\$(\d+(?:,\d{3})*(?:\.\d{2})?)/g, '**$$$1**');
+  }
+
+  // Calculate prosody settings based on content analysis
+  static calculateProsodySettings(text, emotion, baseSettings) {
+    const config = this.getVoiceConfig();
+    let settings = { ...baseSettings };
+
+    // Analyze text characteristics
+    const sentences = text.split(/[.!?]+/).length;
+    const words = text.split(/\s+/).length;
+    const avgWordsPerSentence = words / Math.max(sentences, 1);
+    const hasNumbers = /\d/.test(text);
+    const hasEmphasis = /\*\*.*?\*\*/.test(text);
+
+    // Adjust rate based on content complexity
+    if (avgWordsPerSentence > 15 || hasNumbers) {
+      // Slow down for complex sentences or numbers
+      settings.rate *= 0.85;
+    } else if (avgWordsPerSentence < 8) {
+      // Speed up slightly for short, simple sentences
+      settings.rate *= 1.1;
+    }
+
+    // Adjust pitch for emphasized content
+    if (hasEmphasis) {
+      settings.pitch *= 1.05;
+    }
+
+    // Apply emotion-based adjustments
+    const emotionAdjustments = {
+      enthusiastic: { rate: 1.05, pitch: 1.15, volume: 1.1 },
+      concerned: { rate: 0.9, pitch: 0.95, volume: 0.95 },
+      neutral: { rate: 1.0, pitch: 1.0, volume: 1.0 },
+      friendly: { rate: 0.98, pitch: 1.02, volume: 1.0 }
+    };
+
+    const emotionAdjustment = emotionAdjustments[emotion] || emotionAdjustments.friendly;
+    settings.rate *= emotionAdjustment.rate;
+    settings.pitch *= emotionAdjustment.pitch;
+    settings.volume *= emotionAdjustment.volume;
+
+    // Apply environment variable overrides
+    settings.rate = Math.max(0.5, Math.min(2.0, settings.rate * config.rate));
+    settings.pitch = Math.max(0.5, Math.min(2.0, settings.pitch * config.pitch));
+    settings.volume = Math.max(0.1, Math.min(1.0, settings.volume * config.volume));
+
+    return settings;
+  }
+
+  // Advanced TTS with Deepgram Aura (if available)
+  static async synthesizeSpeechWithDeepgram(text, options = {}) {
+    const config = this.getVoiceConfig();
+
+    // Map standard voice names to Deepgram Aura models
+    const voiceModelMap = {
+      'en-US-Ava': 'aura-asteria-en',
+      'aura-luna-en': 'aura-luna-en',
+      'aura-stella-en': 'aura-stella-en',
+      'aura-asteria-en': 'aura-asteria-en'
+    };
+
+    const {
+      voice = config.voice,
+      emotion = config.emotion
+    } = options;
+
+    const model = voiceModelMap[voice] || 'aura-asteria-en';
+
+    // Detect and enhance emotion
+    const detectedEmotion = EmotionalIntelligence.detectEmotion(text);
+    const enhancedText = this.addNaturalHumanization(text, detectedEmotion);
+
+    // Calculate prosody settings
+    const prosodySettings = this.calculateProsodySettings(text, detectedEmotion, config);
+
+    if (!process.env.DEEPGRAM_API_KEY) {
+      console.warn('DEEPGRAM_API_KEY not set, falling back to browser TTS');
+      return this.synthesizeSpeech(text, options);
+    }
+
+    try {
+      console.log(`Synthesizing with Deepgram Aura: model=${model}, emotion=${detectedEmotion}`);
+
+      const response = await fetch('https://api.deepgram.com/v1/speak?model=' + model, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: enhancedText,
+          // Optional: Add voice settings for more control
+          ...(process.env.NODE_ENV === 'development' && {
+            voice_settings: {
+              stability: config.stability,
+              similarity_boost: config.similarity_boost,
+              style: detectedEmotion
+            }
+          })
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Deepgram API error: ${response.status} ${errorText}`);
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      console.log(`Deepgram TTS successful: ${audioBuffer.byteLength} bytes`);
+      return audioBuffer;
+
+    } catch (error) {
+      console.error('Deepgram TTS Error:', error);
+      // Fallback to browser TTS with enhanced settings
+      return this.synthesizeSpeech(text, {
+        ...options,
+        rate: prosodySettings.rate,
+        pitch: prosodySettings.pitch,
+        volume: prosodySettings.volume
+      });
+    }
   }
 }
 
