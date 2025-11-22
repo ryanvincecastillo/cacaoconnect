@@ -734,7 +734,7 @@ Provide insights in this JSON format:
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 4000);
+    const interval = setInterval(refreshData, 50000);
     return () => clearInterval(interval);
   }, []);
 
