@@ -3,13 +3,20 @@ import { NextResponse } from 'next/server';
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { prompt } = body;
+    const { prompt, messages } = body;
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
     if (!OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+      // Fallback response for demo purposes
+      return NextResponse.json({ 
+        response: "I'm your cocoa farming assistant. I can help you with inventory management, order tracking, weather forecasts, market prices, and quality assessments. What would you like to know?",
+        message: "I'm your cocoa farming assistant. I can help you with inventory management, order tracking, weather forecasts, market prices, and quality assessments. What would you like to know?"
+      });
     }
+
+    // Handle both old prompt format and new messages format
+    const userContent = prompt || (messages && messages[0] && messages[0].content);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -22,15 +29,14 @@ export async function POST(req) {
         messages: [
           {
             role: "system",
-            content: "You are an AI supply chain advisor. Always respond with valid JSON only, no markdown formatting or code blocks."
+            content: "You are a helpful cocoa farming assistant. Provide helpful, practical advice for farmers."
           },
           {
             role: "user",
-            content: prompt
+            content: userContent
           }
         ],
-        temperature: 0.7,
-        response_format: { type: "json_object" }
+        temperature: 0.7
       })
     });
 
@@ -41,11 +47,13 @@ export async function POST(req) {
       return NextResponse.json({ error: data.error.message }, { status: 500 });
     }
 
-    // Parse the content string into a JSON object before returning
+    // Return the content directly without JSON parsing for better flexibility
     const content = data.choices[0].message.content;
-    const jsonContent = JSON.parse(content);
 
-    return NextResponse.json(jsonContent);
+    return NextResponse.json({ 
+      response: content,
+      message: content 
+    });
 
   } catch (error) {
     console.error("Server Error:", error);
