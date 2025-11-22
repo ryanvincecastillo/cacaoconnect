@@ -520,17 +520,17 @@ export class EmotionalIntelligence {
   
   static enhanceTextWithEmotion(text, emotion) {
     const emotionPrefixes = {
-      enthusiastic: ['Great news!', 'Excellent!', 'Wonderful!', 'Fantastic!'],
-      concerned: ['I understand your concern.', 'Let me help you with that.', 'I apologize for the inconvenience.'],
-      neutral: ['Here\'s the information you requested.', 'Let me provide you with an update.'],
-      friendly: ['I\'d be happy to help you with that.', 'Certainly!', 'Of course!']
+      enthusiastic: ['Masarap! ', 'Ang galing! ', 'Wonderful! ', 'Excellent! ', 'Maganda! '],
+      concerned: ['I understand your concern.', 'Let me help you with that.', 'Para sa iyo', 'Kumusta ka? '],
+      neutral: ['Here\'s the information you requested.', 'Let me provide you with an update.', 'Sige, heto '],
+      friendly: ['I\'d be happy to help you with that.', 'Certainly!', 'Of course! ', 'Gusto kong tumulong! ']
     };
-    
+
     const emotionSuffixes = {
-      enthusiastic: [' Is there anything else I can help you with?', ' Feel free to ask if you need anything else!'],
+      enthusiastic: [' Masaya akong tumulong! ', ' Ano pa ang kailangan mo? ', 'Magandang araw! '],
       concerned: [' Please let me know if you need further assistance.', ' I\'m here to help resolve any issues.'],
       neutral: [' Let me know if you need more details.', ' Is there anything specific you\'d like to know?'],
-      friendly: [' How else can I assist you today?', ' I\'m here whenever you need me!']
+      friendly: [' How else can I assist you today?', ' I\'m here whenever you need me! ', 'Sige, ano pa? ']
     };
     
     const prefixes = emotionPrefixes[emotion] || emotionPrefixes.friendly;
@@ -650,24 +650,24 @@ export class TextToSpeechService {
   static addNaturalSpeechPatterns(text, emotion) {
     const patterns = {
       enthusiastic: {
-        starters: ['Well! ', 'Oh, that\'s great! ', 'Excellent! '],
-        fillers: [' you know, ', ' actually, ', ' honestly, '],
-        connectors: [' So, ', ' And, ', ' You know, ']
+        starters: ['Masarap! ', 'Ang galing! ', 'Excellent! ', 'Great! '],
+        fillers: [' you know, ', ' actually, ', ' honestly, ', ' alam mo '],
+        connectors: [' So, ', ' And, ', ' You know, ', 'Kaya ']
       },
       concerned: {
-        starters: ['Hmm, ', 'Let me think about this... ', 'Well, '],
-        fillers: [' I mean, ', ' you see, ', ' basically, '],
-        connectors: [' However, ', ' But, ', ' On the other hand, ']
+        starters: ['Hmm, ', 'Let me think about this... ', 'Well, ', 'Para maibigay '],
+        fillers: [' I mean, ', ' you see, ', ' basically, ', ' para sa '],
+        connectors: [' However, ', ' But, ', ' On the other hand, ', 'Pero ']
       },
       neutral: {
-        starters: ['Alright, ', 'Okay, ', 'Right, '],
-        fillers: [' essentially, ', ' basically, ', ' in fact, '],
-        connectors: [' So, ', ' And, ', ' Also, ']
+        starters: ['Alright, ', 'Okay, ', 'Right, ', 'Sige '],
+        fillers: [' essentially, ', ' basically, ', ' in fact, ', 'sa totoo lang '],
+        connectors: [' So, ', ' And, ', ' Also, ', 'At ']
       },
       friendly: {
-        starters: ['Sure! ', 'Of course! ', 'I\'d be happy to help! '],
-        fillers: [' by the way, ', ' just so you know, ', ' actually, '],
-        connectors: [' And, ', ' So, ', ' Also, ']
+        starters: ['Sure! ', 'Of course! ', 'I\'d be happy to help! ', 'Gusto kong tumulong! '],
+        fillers: [' by the way, ', ' just so you know, ', ' actually, ', 'para sa iyo '],
+        connectors: [' And, ', ' So, ', ' Also, ', 'At saka ']
       }
     };
 

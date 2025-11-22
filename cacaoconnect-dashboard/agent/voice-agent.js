@@ -5,6 +5,7 @@ const { Groq } = require('groq-sdk');
 const { createClient } = require('@supabase/supabase-js');
 const { WebSocket } = require('ws');
 const { AudioBufferUtils, AudioProcessor } = require('../lib/audioUtils');
+const DatabaseContextService = require('../lib/databaseContext');
 
 // Initialize LiveKit logger
 initializeLogger({ pretty: true, level: 'info' });
@@ -259,20 +260,352 @@ class CacaoVoiceAgent extends Worker {
     return combined;
   }
 
+  /**
+   * Get database context for AI prompts
+   */
+  async getDatabaseContext(userId, command, userQuery) {
+    try {
+      console.log(`Fetching database context for user ${userId}, command: ${command.intent}`);
+
+      // Get command-specific context for efficiency
+      const context = await DatabaseContextService.getCommandContext(
+        userId,
+        command.intent,
+        { query: userQuery }
+      );
+
+      console.log(`Database context fetched: ${context.summary || 'No context available'}`);
+      return context;
+
+    } catch (error) {
+      console.error('Error fetching database context:', error);
+      return {
+        summary: 'Database context unavailable',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Generate context-aware response using database information
+   */
+  async generateContextAwareResponse(command, conversationContext, databaseContext, userId) {
+    try {
+      const { intent, entities } = command;
+
+      // First try to use existing handlers for specific intents
+      switch (intent) {
+        case 'commit_volume':
+          return await this.handleCommitVolumeWithContext(entities, userId, databaseContext);
+
+        case 'check_inventory':
+          return await this.handleCheckInventoryWithContext(userId, databaseContext);
+
+        case 'check_deliveries':
+          return await this.handleCheckDeliveriesWithContext(userId, databaseContext);
+
+        case 'market_prices':
+          return await this.handleMarketPricesWithContext(databaseContext);
+
+        case 'weather_forecast':
+          return await this.handleWeatherForecastWithContext(databaseContext);
+
+        case 'quality_assessment':
+          return await this.handleQualityAssessmentWithContext(entities, userId, databaseContext);
+
+        case 'schedule_pickup':
+          return await this.handleSchedulePickupWithContext(entities, userId, databaseContext);
+
+        case 'general_query':
+          return await this.handleGeneralQueryWithContext(entities?.query || '', conversationContext, databaseContext, userId);
+
+        default:
+          return await this.createBasicResponse(databaseContext);
+      }
+
+    } catch (error) {
+      console.error('Error generating context-aware response:', error);
+      return {
+        text: "I'm having trouble processing that request. Please try again.",
+        action: null,
+        data: null,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Context-aware handler methods for concise voice responses
+   */
+
+  async handleCheckInventoryWithContext(userId, databaseContext) {
+    if (databaseContext.hasInventory) {
+      const { totalVolume, gradeBreakdown, summary } = databaseContext;
+      const gradeDetails = Object.entries(gradeBreakdown)
+        .map(([grade, volume]) => `${grade}: ${volume}kg`)
+        .join(', ');
+
+      return {
+        text: `You have ${totalVolume}kg total. ${gradeDetails}.`,
+        action: 'inventory_report',
+        data: { totalVolume, gradeBreakdown }
+      };
+    } else {
+      return {
+        text: "No cocoa beans in your inventory right now.",
+        action: 'inventory_report',
+        data: { inventory: [] }
+      };
+    }
+  }
+
+  async handleCheckDeliveriesWithContext(userId, databaseContext) {
+    if (databaseContext.hasCommitments) {
+      const { readyCommitments, inTransitCommitments, summary } = databaseContext;
+
+      if (readyCommitments === 0 && inTransitCommitments === 0) {
+        return {
+          text: "No active deliveries at the moment.",
+          action: 'delivery_report',
+          data: { deliveries: [] }
+        };
+      }
+
+      let response = `${readyCommitments} ready for pickup`;
+      if (inTransitCommitments > 0) {
+        response += ` and ${inTransitCommitments} in transit.`;
+      } else {
+        response += '.';
+      }
+
+      return {
+        text: response,
+        action: 'delivery_report',
+        data: databaseContext
+      };
+    } else {
+      return {
+        text: "No delivery commitments found.",
+        action: 'delivery_report',
+        data: { deliveries: [] }
+      };
+    }
+  }
+
+  async handleMarketPricesWithContext(databaseContext) {
+    if (databaseContext.cocoaPrices) {
+      const { gradeA, gradeB, gradeC } = databaseContext.cocoaPrices;
+      const trends = {
+        up: '↑',
+        down: '↓',
+        stable: '→'
+      };
+
+      return {
+        text: `Grade A: $${gradeA.price}/ton ${trends[gradeA.trend]}. Grade B: $${gradeB.price}/ton. Good time to sell!`,
+        action: 'market_report',
+        data: databaseContext.cocoaPrices
+      };
+    } else {
+      return {
+        text: "Market prices temporarily unavailable. Please check back later.",
+        action: 'market_report',
+        data: null
+      };
+    }
+  }
+
+  async handleCommitVolumeWithContext(entities, userId, databaseContext) {
+    const [volume, orderId] = entities;
+
+    if (!volume || !orderId) {
+      return {
+        text: "I need both volume and order number. Like: 'Commit 50kg to order ABC'.",
+        action: 'request_clarification',
+        data: { required: ['volume', 'order_id'] }
+      };
+    }
+
+    // Check if user has inventory to commit
+    if (databaseContext.inventory?.hasInventory) {
+      const { totalVolume } = databaseContext.inventory;
+
+      if (totalVolume < parseFloat(volume)) {
+        return {
+          text: `You only have ${totalVolume}kg available, but want to commit ${volume}kg. Check your inventory.`,
+          action: 'inventory_insufficient',
+          data: { available: totalVolume, requested: parseFloat(volume) }
+        };
+      }
+    }
+
+    return {
+      text: `I'll commit ${volume}kg to order ${orderId}. Please confirm this commitment.`,
+      action: 'confirm_commitment',
+      data: { volume: parseFloat(volume), order_id: orderId }
+    };
+  }
+
+  async handleWeatherForecastWithContext(databaseContext) {
+    if (databaseContext.temperature && databaseContext.conditions) {
+      const { temperature, rainfall, conditions } = databaseContext;
+
+      return {
+        text: `${conditions}: ${temperature.min}-${temperature.max}°C with ${rainfall} rain. Good for farming!`,
+        action: 'weather_report',
+        data: databaseContext
+      };
+    } else {
+      return {
+        text: "Weather info temporarily unavailable. Good conditions expected this week.",
+        action: 'weather_report',
+        data: { forecast: 'unavailable' }
+      };
+    }
+  }
+
+  async handleQualityAssessmentWithContext(entities, userId, databaseContext) {
+    // Reference user's inventory for quality guidance
+    let guidance = "Check for consistent color, no mold, and good aroma. Moisture should be 6-8%.";
+
+    if (databaseContext.inventory?.hasInventory) {
+      guidance += " Would you like me to schedule a quality inspection for your current inventory?";
+    }
+
+    return {
+      text: guidance,
+      action: 'quality_guidance',
+      data: databaseContext.inventory || null
+    };
+  }
+
+  async handleSchedulePickupWithContext(entities, userId, databaseContext) {
+    // Check if user has ready commitments
+    if (databaseContext.hasCommitments && databaseContext.readyCommitments > 0) {
+      return {
+        text: `You have ${databaseContext.readyCommitments} commitments ready for pickup. What date works best?`,
+        action: 'schedule_request',
+        data: { readyCount: databaseContext.readyCommitments }
+      };
+    } else {
+      return {
+        text: "No commitments are ready for pickup yet. I'll let you know when they are.",
+        action: 'schedule_request',
+        data: { readyCount: 0 }
+      };
+    }
+  }
+
+  async handleGeneralQueryWithContext(query, conversationContext, databaseContext, userId) {
+    try {
+      // Create context-aware prompt for Groq
+      const contextPrompt = this.createContextAwarePrompt(query, databaseContext);
+
+      const completion = await groq.chat.completions.create({
+        model: "llama3-70b-8192",
+        messages: [
+          {
+            role: "system",
+            content: `${contextPrompt}
+
+Respond concisely in 25-50 words. Focus on practical advice for Filipino cocoa farmers. Use simple language and mention specific user data when relevant.`
+          },
+          {
+            role: "user",
+            content: query
+          }
+        ],
+        max_tokens: 80, // Reduced for voice optimization
+        temperature: 0.7
+      });
+
+      const response = completion.choices[0]?.message?.content ||
+        "I can help with your cocoa farming questions about inventory, orders, deliveries, weather, or market prices.";
+
+      return {
+        text: response,
+        action: 'general_response',
+        data: { context: databaseContext?.summary }
+      };
+
+    } catch (error) {
+      console.error('General query error:', error);
+      return {
+        text: "I'm here to help with cocoa farming. Ask me about inventory, orders, deliveries, weather, or market prices.",
+        action: 'help_response',
+        data: null
+      };
+    }
+  }
+
+  async createBasicResponse(databaseContext) {
+    let response = "I'm your CacaoConnect assistant. I can help you with farming needs.";
+
+    if (databaseContext?.summary) {
+      response += ` Current status: ${databaseContext.summary}`;
+    }
+
+    response += " What would you like to know?";
+
+    return {
+      text: response,
+      action: 'help_response',
+      data: databaseContext
+    };
+  }
+
+  /**
+   * Create context-aware system prompt for AI
+   */
+  createContextAwarePrompt(userQuery, databaseContext) {
+    let prompt = "You are a helpful Filipino cocoa farming assistant for CacaoConnect.";
+
+    if (databaseContext?.summary && databaseContext.summary !== 'Database context unavailable') {
+      prompt += `\n\nCurrent User Data: ${databaseContext.summary}`;
+    }
+
+    // Add specific context based on query
+    const queryLower = userQuery.toLowerCase();
+
+    if (queryLower.includes('inventory') && databaseContext?.inventory?.hasInventory) {
+      prompt += `\n\nUser Inventory: ${databaseContext.inventory.summary}`;
+    }
+
+    if (queryLower.includes('order') && databaseContext?.orders?.hasOrders) {
+      prompt += `\n\nUser Orders: ${databaseContext.orders.summary}`;
+    }
+
+    if (queryLower.includes('delivery') && databaseContext?.commitments?.hasCommitments) {
+      prompt += `\n\nUser Commitments: ${databaseContext.commitments.summary}`;
+    }
+
+    if (queryLower.includes('market') && databaseContext?.market) {
+      prompt += `\n\nMarket Data: ${databaseContext.market.summary}`;
+    }
+
+    prompt += "\n\nProvide helpful, practical advice in simple terms. Focus on action items and key information.";
+
+    return prompt;
+  }
+
   async processTranscription(text, participant) {
     try {
       // Parse command and get context
       const command = this.parseCommand(text);
-      const context = this.getConversationContext(participant.identity);
+      const conversationContext = this.getConversationContext(participant.identity);
 
-      // Generate appropriate response
-      const response = await this.generateFarmingResponse(command, context, participant.identity);
+      // Fetch database context for AI
+      const databaseContext = await this.getDatabaseContext(participant.identity, command, text);
+
+      // Generate appropriate response with database context
+      const response = await this.generateContextAwareResponse(command, conversationContext, databaseContext, participant.identity);
 
       // Update conversation context
       this.updateConversationContext(participant.identity, {
         lastCommand: command,
         lastResponse: response,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        databaseContext: databaseContext?.summary || null
       });
 
       // Convert response to speech and send back
